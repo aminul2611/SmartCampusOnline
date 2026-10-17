@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Teacher Workspace · Smart Campus</title>
+
+  <link rel="stylesheet" href="../static/teacher/layout.css">
+  <link rel="stylesheet" href="../static/teacher/sidebar.css">
+  <link rel="stylesheet" href="../static/teacher/profile.css">
+  <link rel="stylesheet" href="../static/teacher/portal.css?v=2">
+</head>
+
+<body data-timezone="Asia/Shanghai">
+
+  <aside class="sidebar teacher-sidebar">
+
+    <a class="brand tsb-brand" href="#dashboard">
+      <span class="logo tsb-logo">SC</span>
+
+      <span class="tsb-brand-copy">
+        <strong>Smart Campus</strong>
+        <small>Teacher workspace</small>
+      </span>
+    </a>
+
+    <div class="tsb-menu-label">YOUR WORKSPACE</div>
+
+    <nav class="tsb-nav" aria-label="Teacher menu">
+
+      <a class="tsb-link" href="#dashboard">
+        <span class="tsb-icon">▦</span>
+        <span class="tsb-label">Dashboard</span>
+      </a>
+
+      <a class="tsb-link" href="#students">
+        <span class="tsb-icon">♙</span>
+        <span class="tsb-label">Student Details</span>
+      </a>
+
+      <a class="tsb-link" href="#marks">
+        <span class="tsb-icon">✓</span>
+        <span class="tsb-label">Student Marks</span>
+      </a>
+
+      <a class="tsb-link" href="#attendance">
+        <span class="tsb-icon">☑</span>
+        <span class="tsb-label">Student Attendance</span>
+      </a>
+
+      <a class="tsb-link" href="#classes">
+        <span class="tsb-icon">▤</span>
+        <span class="tsb-label">Daily Classes</span>
+      </a>
+
+      <a class="tsb-link" href="#notices">
+        <span class="tsb-icon">▤</span>
+        <span class="tsb-label">Notices</span>
+      </a>
+
+      <a class="tsb-link" href="#my-attendance">
+        <span class="tsb-icon">◷</span>
+        <span class="tsb-label">My Attendance</span>
+      </a>
+
+      <a class="tsb-link" href="#profile">
+        <span class="tsb-icon">◎</span>
+        <span class="tsb-label">Teacher Profile</span>
+      </a>
+
+    </nav>
+
+    <div class="tsb-bottom">
+
+      <div class="tsb-account">
+        <span class="tsb-avatar" data-initial>T</span>
+
+        <div>
+          <strong data-teacher-name>Teacher</strong>
+          <small>Teacher account</small>
+        </div>
+      </div>
+
+      <form class="logout tsb-logout" id="logout">
+        <button type="submit">
+          ↪ Log out
+          <span class="tsb-logout-arrow">→</span>
+        </button>
+      </form>
+
+    </div>
+
+  </aside>
+
+  <div class="workspace">
+
+    <header class="topbar">
+
+      <div>
+        <strong id="page-title">Teacher Workspace</strong>
+        <small id="live-date"></small>
+      </div>
+
+      <div class="header-right">
+
+        <label class="search">
+          <span class="sr-only">Search this page</span>
+          <input
+            id="page-search"
+            type="search"
+            placeholder="Search this page"
+          >
+        </label>
+
+        <time id="live-time">—</time>
+
+        <button
+          type="button"
+          class="secondary"
+          id="refresh"
+        >
+          Refresh
+        </button>
+
+        <a href="#profile" class="avatar" data-initial>T</a>
+
+      </div>
+
+    </header>
+
+    <main>
+
+      <p
+        id="status"
+        class="flash"
+        role="status"
+        aria-live="polite"
+      >
+        Loading Teacher workspace…
+      </p>
+
+      <button type="button" id="retry" hidden>
+        Try again
+      </button>
+
+      <div id="content" hidden></div>
+
+    </main>
+
+    <footer>
+      Smart Campus · Developed by Md. Aminul Islam
+    </footer>
+
+  </div>
+
+  <script type="module">
+    import("../js/teacher-workspace.js?v=2").catch(error => {
+      document.getElementById("status").textContent =
+        "Could not load Teacher workspace: " + error.message;
+
+      document.getElementById("retry").hidden = false;
+    });
+  </script>
+
+</body>
+</html>

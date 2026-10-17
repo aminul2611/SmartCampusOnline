@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Administration · Smart Campus</title>
+
+  <link
+    rel="stylesheet"
+    href="../static/admin/workspace.css?v=3"
+  >
+</head>
+
+<body>
+
+  <section
+    id="loading"
+    class="loading"
+    role="status"
+  >
+    <h1>Smart Campus</h1>
+
+    <p id="loading-text">
+      Loading administrator workspace…
+    </p>
+
+    <button id="retry" type="button" hidden>
+      Try again
+    </button>
+
+    <p>
+      <a href="../login.html?role=admin">
+        Back to login
+      </a>
+    </p>
+  </section>
+
+  <div
+    id="workspace"
+    class="layout"
+    hidden
+  >
+    <aside>
+
+      <a class="brand" href="#dashboard">
+        <span class="logo">SC</span>
+
+        <span>
+          Smart Campus
+          <small>Administration</small>
+        </span>
+      </a>
+
+      <p class="eyebrow">MANAGEMENT</p>
+
+      <nav aria-label="Admin navigation">
+        <a href="#dashboard">▦ Dashboard</a>
+        <a href="#teachers">◷ Teacher Details</a>
+        <a href="#students">♙ Student Details</a>
+        <a href="#classes">▤ Class Setup</a>
+        <a href="#notices">▧ Notices</a>
+        <a href="#profile">◎ Profile</a>
+      </nav>
+
+      <div class="account">
+        <strong id="admin-name"></strong>
+        <small id="admin-email"></small>
+      </div>
+
+      <button
+        id="logout"
+        class="danger"
+        type="button"
+      >
+        Log out →
+      </button>
+
+    </aside>
+
+    <div class="main-column">
+
+      <header>
+        <strong id="page-title">
+          Dashboard
+        </strong>
+
+        <div>
+          <span id="page-date"></span>
+          <span class="badge">Admin</span>
+
+          <button
+            id="refresh"
+            class="secondary"
+            type="button"
+          >
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <main>
+
+        <p
+          id="working"
+          class="working"
+          role="status"
+          hidden
+        >
+          Saving… Please keep this page open.
+        </p>
+
+        <p
+          id="message"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
+
+        <div id="content"></div>
+
+      </main>
+
+      <footer>
+        Smart Campus · Developed by Md. Aminul Islam
+      </footer>
+
+    </div>
+  </div>
+
+  <script type="module">
+  import("../js/admin-workspace.js?v=3").catch((error) => {
+    console.error("Admin workspace load error:", error);
+
+    document.getElementById("loading-text").textContent =
+      "Could not load Firebase or the Admin scripts. " +
+      "Check your connection and file paths.";
+
+    document.getElementById("retry").hidden = false;
+  });
+</script>
+
+</body>
+</html>

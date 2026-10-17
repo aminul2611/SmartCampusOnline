@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <title>Teacher Details · Smart Campus</title>
+
+    <link rel="stylesheet"
+          href="../static/admin/teacher-details.css?v=10">
+</head>
+
+<body class="teacher-admin">
+
+<aside class="ta-sidebar">
+
+    <a class="ta-brand" href="./index.html">
+        <span class="ta-logo">SC</span>
+
+        <span>
+            Smart Campus
+            <small>Administration</small>
+        </span>
+    </a>
+
+    <p class="ta-menu-label">MANAGEMENT</p>
+
+    <nav aria-label="Admin navigation">
+        <a href="./index.html">
+            <span aria-hidden="true">▦</span>
+            Dashboard
+        </a>
+
+        <a href="./teachers.html"
+           class="active"
+           aria-current="page">
+            <span aria-hidden="true">◷</span>
+            Teacher Details
+        </a>
+    </nav>
+
+    <div class="ta-sidebar-bottom">
+        <div class="ta-admin">
+            <span class="ta-small-avatar">A</span>
+
+            <div>
+                <strong data-admin-name>Administrator</strong>
+                <small>Admin account</small>
+            </div>
+        </div>
+
+        <form id="admin-logout">
+            <button type="submit" class="ta-logout">
+                Log out →
+            </button>
+        </form>
+    </div>
+
+</aside>
+
+<div class="ta-workspace">
+
+    <header class="ta-topbar">
+        <strong>Teacher Details</strong>
+
+        <div>
+            <span id="admin-date"></span>
+            <span class="ta-role">Admin</span>
+        </div>
+    </header>
+
+    <main class="ta-content">
+
+        <p id="module-loading"
+           class="ta-message"
+           role="status">
+            Loading your workspace…
+        </p>
+
+        <div id="module-content" hidden>
+
+            <div class="ta-page-heading">
+                <div>
+                    <span class="ta-eyebrow">TEACHING TEAM</span>
+                    <h1>Teacher Details</h1>
+
+                    <p>
+                        Manage teacher accounts and account security.
+                    </p>
+                </div>
+
+                <div class="ta-total-card">
+                    <span aria-hidden="true">♙</span>
+
+                    <div>
+                        <strong id="teacher-total">0</strong>
+                        <small>Total teachers</small>
+                    </div>
+                </div>
+            </div>
+
+            <details class="ta-card ta-create">
+                <summary>
+                    <span class="ta-summary-icon">＋</span>
+
+                    <span>
+                        Add teacher
+                        <small>Create a new teacher account</small>
+                    </span>
+
+                    <span class="ta-summary-arrow"
+                          aria-hidden="true">⌄</span>
+                </summary>
+
+                <div class="ta-create-content">
+
+                    <p id="teacher-create-message"
+                       class="ta-message"
+                       role="status"
+                       aria-live="polite"
+                       hidden></p>
+
+                    <form id="create-teacher">
+
+                        <div class="ta-field-grid">
+
+                            <label>
+                                Teacher ID
+                                <input name="teacher_no"
+                                       maxlength="80"
+                                       placeholder="Example: T-1001"
+                                       required>
+                            </label>
+
+                            <label>
+                                Full name
+                                <input name="name"
+                                       maxlength="100"
+                                       autocomplete="name"
+                                       placeholder="Enter full name"
+                                       required>
+                            </label>
+
+                            <label>
+                                Email address
+                                <input type="email"
+                                       name="email"
+                                       maxlength="254"
+                                       autocomplete="off"
+                                       placeholder="teacher@example.com"
+                                       required>
+                            </label>
+
+                            <label>
+                                Department
+                                <input name="department"
+                                       maxlength="150"
+                                       placeholder="Example: CSE">
+                            </label>
+
+                            <label>
+                                Initial password
+                                <input type="password"
+                                       name="new_password"
+                                       minlength="8"
+                                       maxlength="128"
+                                       autocomplete="new-password"
+                                       placeholder="At least 8 characters"
+                                       required>
+                            </label>
+
+                            <label>
+                                Confirm password
+                                <input type="password"
+                                       name="confirm_password"
+                                       minlength="8"
+                                       maxlength="128"
+                                       autocomplete="new-password"
+                                       placeholder="Re-enter password"
+                                       required>
+                            </label>
+
+                        </div>
+
+                        <div class="ta-form-footer">
+                            <p>
+                                The teacher can sign in using this email
+                                and password.
+                            </p>
+
+                            <button type="submit" class="ta-button">
+                                Create teacher →
+                            </button>
+                        </div>
+
+                    </form>
+
+                </div>
+            </details>
+
+            <section class="ta-card">
+
+                <div class="ta-section-heading">
+                    <div>
+                        <span class="ta-eyebrow">DIRECTORY</span>
+                        <h2>All teachers</h2>
+                        <p>Browse and manage your teaching team.</p>
+                    </div>
+
+                    <label class="ta-search">
+                        Search teachers
+
+                        <input id="teacher-search"
+                               type="search"
+                               placeholder="Name, ID, email or department"
+                               autocomplete="off">
+                    </label>
+                </div>
+
+                <p id="teacher-status-message"
+                   class="ta-message"
+                   role="status"
+                   aria-live="polite"
+                   hidden></p>
+
+                <div class="ta-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">Teacher</th>
+                                <th scope="col">Teacher ID</th>
+                                <th scope="col">Email address</th>
+                                <th scope="col">Department</th>
+                                <th scope="col">Account</th>
+                                <th scope="col">Status</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="teacher-list"></tbody>
+                    </table>
+                </div>
+
+                <div class="ta-list-footer">
+                    <span id="teacher-visible-count"></span>
+                    <span>Smart Campus teaching team</span>
+                </div>
+
+            </section>
+
+            <section class="ta-card">
+
+                <div class="ta-section-heading">
+                    <div>
+                        <span class="ta-eyebrow">ATTENDANCE OVERVIEW</span>
+
+                        <h2>Monthly Teacher Attendance</h2>
+
+                        <p>
+                            Check-in days ·
+                            <span id="month-label"></span>
+                        </p>
+                    </div>
+
+                    <form id="monthly-chart-filter"
+                          class="ta-month-filter">
+
+                        <label for="attendance-month">Select month</label>
+
+                        <div>
+                            <input id="attendance-month"
+                                   type="month"
+                                   required>
+
+                            <button type="submit"
+                                    class="ta-button ta-secondary">
+                                Show
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+
+                <p id="chart-message"
+                   class="ta-message"
+                   role="status"
+                   hidden></p>
+
+                <div id="monthly-chart-bars"
+                     class="ta-chart"
+                     role="list"
+                     aria-label="Monthly teacher check-in days"></div>
+
+                <p class="ta-chart-note">
+                    Each date with a check-in counts as one day.
+                    Bar lengths are relative to the highest count.
+                </p>
+
+            </section>
+
+        </div>
+
+    </main>
+
+    <footer class="ta-footer">
+        Smart Campus · Developed by Md. Aminul Islam
+    </footer>
+
+</div>
+
+<script type="module">
+    import("../js/teacher-management.js").catch(() => {
+        const message = document.getElementById("module-loading");
+
+        message.textContent =
+            "Could not load this page. Check the JavaScript file path and refresh.";
+
+        message.hidden = false;
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <title>Sign in · Smart Campus</title>
+
+    <link rel="stylesheet" href="./css/login.css">
+</head>
+
+<body>
+<main class="login-shell">
+    <section class="intro">
+        <a class="brand" href="./">
+            <span class="logo">SC</span>
+            <span>Smart Campus<small>Your campus, connected.</small></span>
+        </a>
+
+        <div>
+            <span class="eyebrow">YOUR CAMPUS WORKSPACE</span>
+            <h1>People.<br>Classes.<br>Connected.</h1>
+
+            <p>
+                One place for your classes, attendance,
+                results and campus updates.
+            </p>
+
+            <ul>
+                <li>✓ Organized classes and schedules</li>
+                <li>✓ Attendance and academic progress</li>
+                <li>✓ Notices that keep everyone connected</li>
+            </ul>
+        </div>
+
+        <small>Smart Campus · Developed by Md. Aminul Islam</small>
+    </section>
+
+    <section class="login-panel">
+        <div id="signin-section">
+            <span class="eyebrow">WELCOME BACK</span>
+            <h2>Sign in</h2>
+            <p class="muted">Choose your workspace to continue.</p>
+
+            <nav class="role-tabs" aria-label="Account role">
+                <button type="button" data-role="admin"
+                        aria-pressed="true">Admin</button>
+
+                <button type="button" data-role="teacher"
+                        aria-pressed="false">Teacher</button>
+
+                <button type="button" data-role="student"
+                        aria-pressed="false">Student</button>
+            </nav>
+
+            <form id="login-form">
+                <label for="email">Email address</label>
+                <input id="email" type="email"
+                       autocomplete="username"
+                       placeholder="you@example.com"
+                       maxlength="254" required>
+
+                <label for="password">Password</label>
+
+                <div class="password-wrap">
+                    <input id="password" type="password"
+                           autocomplete="current-password"
+                           placeholder="Enter your password"
+                           required>
+
+                    <button id="toggle-password" type="button"
+                            aria-pressed="false"
+                            aria-controls="password">Show</button>
+                </div>
+
+                <p id="login-message" class="message"
+                   role="status" aria-live="polite" hidden></p>
+
+                <button id="signin-button"
+                        class="primary" type="submit" disabled>
+                    Loading Firebase…
+                </button>
+            </form>
+
+            <p class="helper">
+                Use your Smart Campus account email and password.
+            </p>
+        </div>
+
+        <section id="account-section" hidden>
+            <span class="success-icon" aria-hidden="true">✓</span>
+            <span class="eyebrow">ACCOUNT VERIFIED</span>
+            <h2 id="account-name"></h2>
+
+            <p class="muted">You have signed in successfully.</p>
+
+            <dl>
+                <dt>Email</dt>
+                <dd id="account-email"></dd>
+
+                <dt>Workspace</dt>
+                <dd id="account-role"></dd>
+            </dl>
+
+            <p class="helper">
+                Login is connected. Dashboard features will be
+                added in the next step.
+            </p>
+
+            <button id="logout-button" class="primary" type="button">
+                Log out →
+            </button>
+
+            <p id="logout-message" class="message"
+               role="status" hidden></p>
+        </section>
+    </section>
+</main>
+
+<script type="module">
+    import("./js/login.js").catch(() => {
+        const message = document.getElementById("login-message");
+        message.textContent =
+            "Firebase could not load. Check your connection, VPN and file paths, then refresh.";
+        message.hidden = false;
+
+        document.getElementById("signin-button").textContent =
+            "Refresh to try again";
+    });
+</script>
+</body>
+</html>

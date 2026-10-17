@@ -1,0 +1,287 @@
+aside.sidebar.teacher-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 20px 10px 14px;
+  border-right: 1px solid #e6ece8;
+  background: #fff;
+  color: #53675b;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #dce5df transparent;
+}
+
+.teacher-sidebar,
+.teacher-sidebar * {
+  box-sizing: border-box;
+}
+
+aside.teacher-sidebar .tsb-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 25px;
+  padding: 3px 6px;
+  text-decoration: none;
+}
+
+aside.teacher-sidebar .tsb-logo {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #dfebe3;
+  border-radius: 11px;
+  background: #eef6f0;
+  color: #557b61;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+aside.teacher-sidebar .tsb-brand-copy {
+  min-width: 0;
+}
+
+aside.teacher-sidebar .tsb-brand-copy strong {
+  display: block;
+  color: #344c3d;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+aside.teacher-sidebar .tsb-brand-copy small {
+  display: block;
+  margin-top: 2px;
+  color: #94a198;
+  font-size: 9px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+aside.teacher-sidebar .tsb-menu-label {
+  margin: 0 9px 10px;
+  color: #9ba89f;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+}
+
+aside.teacher-sidebar .tsb-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+}
+
+aside.teacher-sidebar .tsb-nav a.tsb-link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  height: auto;
+  margin: 0;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  box-shadow: none;
+  color: #718077;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+  text-decoration: none;
+  transition:
+    background .15s ease,
+    color .15s ease,
+    border-color .15s ease;
+}
+
+aside.teacher-sidebar .tsb-nav a.tsb-link::before,
+aside.teacher-sidebar .tsb-nav a.tsb-link::after {
+  display: none;
+}
+
+aside.teacher-sidebar .tsb-link .tsb-icon {
+  display: grid;
+  flex: 0 0 23px;
+  width: 23px;
+  height: 23px;
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  border-radius: 7px;
+  background: transparent;
+  color: #91a398;
+  font-size: 15px;
+  line-height: 1;
+}
+
+aside.teacher-sidebar .tsb-link .tsb-label {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+  font-weight: inherit;
+  line-height: 1.5;
+  text-align: left;
+  white-space: nowrap;
+}
+
+aside.teacher-sidebar .tsb-nav a.tsb-link:hover {
+  border-color: transparent;
+  background: #f5f8f6;
+  color: #4f705a;
+}
+
+aside.teacher-sidebar .tsb-nav a.tsb-link.active {
+  border-color: #e0ece3;
+  background: #edf5ef;
+  color: #426b4f;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+aside.teacher-sidebar .tsb-link.active .tsb-icon {
+  background: #e0eee4;
+  color: #648a70;
+}
+
+aside.teacher-sidebar .tsb-active-dot {
+  display: block;
+  flex: 0 0 4px;
+  width: 4px;
+  height: 4px;
+  margin-left: 1px;
+  border-radius: 50%;
+  background: #87aa91;
+}
+
+aside.teacher-sidebar .tsb-bottom {
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+aside.teacher-sidebar .tsb-account {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 10px;
+  padding: 13px 6px;
+  border-top: 1px solid #edf1ee;
+}
+
+aside.teacher-sidebar .tsb-avatar {
+  display: grid;
+  flex: 0 0 31px;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 10px;
+  background: #eff4f0;
+  color: #75917d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+aside.teacher-sidebar .tsb-account > div {
+  flex: 1;
+  min-width: 0;
+}
+
+aside.teacher-sidebar .tsb-account strong {
+  display: block;
+  overflow: hidden;
+  color: #64786b;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+aside.teacher-sidebar .tsb-account small {
+  display: block;
+  margin-top: 2px;
+  color: #a0ada4;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+aside.teacher-sidebar form.logout.tsb-logout {
+  position: static;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+aside.teacher-sidebar .tsb-logout button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  width: 100%;
+  min-height: 37px;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid #eee4e1;
+  border-radius: 9px;
+  background: #fcf7f5;
+  box-shadow: none;
+  color: #a18077;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+
+aside.teacher-sidebar .tsb-logout button:hover {
+  background: #f7eeea;
+}
+
+aside.teacher-sidebar .tsb-logout-arrow {
+  margin-left: auto;
+}
+
+aside.teacher-sidebar .tsb-link:focus-visible,
+aside.teacher-sidebar .tsb-logout button:focus-visible {
+  outline: 2px solid #b9d3c1;
+  outline-offset: 2px;
+}
+
+aside.teacher-sidebar .tsb-logout button {
+  min-height: 43px;
+  padding: 11px 14px;
+  border: 1.5px solid #d9aaa1;
+  border-radius: 10px;
+  background: #faeae6;
+  color: #914f43;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 5px rgb(145 79 67 / 8%);
+}
+
+aside.teacher-sidebar .tsb-logout button:hover {
+  border-color: #c88e82;
+  background: #f4dcd5;
+  color: #7a3d32;
+}
+
+aside.teacher-sidebar .tsb-logout button > span {
+  font-size: 15px;
+  font-weight: 700;
+}

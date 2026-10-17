@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Student Workspace · Smart Campus</title>
+
+  <link
+    rel="stylesheet"
+    href="../static/student/portal.css?v=1"
+  >
+</head>
+
+<body class="workspace role-student">
+
+  <aside class="campus-sidebar">
+
+    <a class="campus-brand" href="#dashboard">
+      <span class="campus-logo">SC</span>
+
+      <span>
+        Smart Campus
+        <small>Student workspace</small>
+      </span>
+    </a>
+
+    <div class="sidebar-caption">
+      WORKSPACE
+    </div>
+
+    <nav
+      class="campus-nav"
+      aria-label="Main navigation"
+    >
+      <a href="#dashboard">
+        <span>▦</span>
+        Dashboard
+      </a>
+
+      <a href="#classes">
+        <span>▤</span>
+        My Classes
+      </a>
+
+      <a href="#tasks">
+        <span>✓</span>
+        Tasks
+      </a>
+
+      <a href="#attendance">
+        <span>◷</span>
+        My Attendance
+      </a>
+
+      <a href="#results">
+        <span>↗</span>
+        My Results
+      </a>
+
+      <a href="#notices">
+        <span>▧</span>
+        My Notices
+      </a>
+
+      <a href="#profile">
+        <span>◎</span>
+        My Profile
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+
+      <div class="sidebar-person">
+        <span
+          class="person-avatar"
+          data-initial
+        >S</span>
+
+        <div>
+          <strong data-student-name>
+            Student
+          </strong>
+
+          <small>
+            Student account
+          </small>
+        </div>
+      </div>
+
+      <form id="student-logout">
+        <button
+          class="sidebar-logout"
+          type="submit"
+        >
+          Log out →
+        </button>
+      </form>
+
+    </div>
+  </aside>
+
+  <div class="campus-main">
+
+    <header class="campus-topbar">
+
+      <div>
+        <strong id="page-title">
+          Dashboard
+        </strong>
+
+        <span
+          id="today"
+          class="topbar-date"
+        ></span>
+      </div>
+
+      <div class="topbar-account">
+
+        <button
+          id="student-refresh"
+          class="dashboard-button"
+          type="button"
+        >
+          Refresh
+        </button>
+
+        <span class="account-role">
+          Student
+        </span>
+
+        <span
+          class="person-avatar"
+          data-initial
+        >S</span>
+
+      </div>
+    </header>
+
+    <main class="campus-content">
+
+      <div class="campus-flash-list">
+        <p
+          id="student-message"
+          class="flash"
+          role="status"
+          aria-live="polite"
+        >
+          Checking Student account…
+        </p>
+      </div>
+
+      <button
+        id="student-retry"
+        class="dashboard-button"
+        type="button"
+        hidden
+      >
+        Try again
+      </button>
+
+      <div
+        id="student-content"
+        hidden
+      ></div>
+
+    </main>
+
+    <footer class="campus-footer">
+      Smart Campus · Developed by Md. Aminul Islam
+    </footer>
+
+  </div>
+
+  <script type="module">
+    import("../js/student-workspace.js?v=1")
+      .catch(error => {
+        document.getElementById(
+          "student-message"
+        ).textContent =
+          "Could not load Student workspace: " +
+          error.message;
+
+        document.getElementById(
+          "student-retry"
+        ).hidden = false;
+      });
+  </script>
+
+</body>
+</html>

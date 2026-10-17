@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <title>Teacher Account · Smart Campus</title>
+
+    <link rel="stylesheet"
+          href="../static/admin/teacher-details.css?v=10">
+</head>
+
+<body class="teacher-admin">
+
+<aside class="ta-sidebar">
+
+    <a class="ta-brand" href="./index.html">
+        <span class="ta-logo">SC</span>
+
+        <span>
+            Smart Campus
+            <small>Administration</small>
+        </span>
+    </a>
+
+    <p class="ta-menu-label">MANAGEMENT</p>
+
+    <nav aria-label="Admin navigation">
+        <a href="./index.html">
+            <span aria-hidden="true">▦</span>
+            Dashboard
+        </a>
+
+        <a href="./teachers.html" class="active">
+            <span aria-hidden="true">◷</span>
+            Teacher Details
+        </a>
+    </nav>
+
+    <div class="ta-sidebar-bottom">
+        <div class="ta-admin">
+            <span class="ta-small-avatar">A</span>
+
+            <div>
+                <strong data-admin-name>Administrator</strong>
+                <small>Admin account</small>
+            </div>
+        </div>
+
+        <form id="admin-logout">
+            <button type="submit" class="ta-logout">
+                Log out →
+            </button>
+        </form>
+    </div>
+
+</aside>
+
+<div class="ta-workspace">
+
+    <header class="ta-topbar">
+        <strong>Teacher Account</strong>
+
+        <div>
+            <span id="admin-date"></span>
+            <span class="ta-role">Admin</span>
+        </div>
+    </header>
+
+    <main class="ta-content">
+
+        <p id="module-loading"
+           class="ta-message"
+           role="status">
+            Loading teacher account…
+        </p>
+
+        <div id="module-content" hidden>
+
+            <a class="ta-back" href="./teachers.html">
+                ← Back to Teacher Details
+            </a>
+
+            <div class="ta-page-heading">
+                <div>
+                    <span class="ta-eyebrow">ACCOUNT SETTINGS</span>
+                    <h1 id="selected-teacher-name">Teacher account</h1>
+
+                    <p>
+                        Update account information and reset the password.
+                    </p>
+                </div>
+            </div>
+
+            <div class="ta-account-grid">
+
+                <section class="ta-card">
+
+                    <div class="ta-section-heading">
+                        <div>
+                            <span class="ta-eyebrow">PERSONAL INFORMATION</span>
+                            <h2>Account details</h2>
+
+                            <p>
+                                Email changes also update the login email.
+                            </p>
+                        </div>
+                    </div>
+
+                    <p id="teacher-account-message"
+                       class="ta-message"
+                       role="status"
+                       aria-live="polite"
+                       hidden></p>
+
+                    <form id="teacher-account-form">
+
+                        <div class="ta-field-grid ta-two-columns">
+
+                            <label>
+                                Teacher ID
+                                <input name="teacher_no"
+                                       maxlength="80"
+                                       required>
+                            </label>
+
+                            <label>
+                                Full name
+                                <input name="name"
+                                       maxlength="100"
+                                       autocomplete="name"
+                                       required>
+                            </label>
+
+                            <label class="ta-full-width">
+                                Email address
+                                <input name="email"
+                                       type="email"
+                                       maxlength="254"
+                                       required>
+                            </label>
+
+                            <label>
+                                Department
+                                <input name="department"
+                                       maxlength="150">
+                            </label>
+
+                            <label>
+                                Designation
+                                <input name="designation"
+                                       maxlength="150">
+                            </label>
+
+                            <label>
+                                Phone
+                                <input name="phone"
+                                       type="tel"
+                                       maxlength="150">
+                            </label>
+
+                            <label>
+                                Account status
+                                <select name="active" required>
+                                    <option value="1">Active</option>
+                                    <option value="0">Inactive</option>
+                                </select>
+                            </label>
+
+                        </div>
+
+                        <div class="ta-form-footer">
+                            <p>Save changes to update this account.</p>
+
+                            <button type="submit" class="ta-button">
+                                Save account →
+                            </button>
+                        </div>
+
+                    </form>
+
+                </section>
+
+                <section class="ta-card ta-password-card">
+
+                    <div class="ta-section-heading">
+                        <div>
+                            <span class="ta-eyebrow">ACCOUNT SECURITY</span>
+                            <h2>Reset password</h2>
+
+                            <p>
+                                Set a new password for this teacher.
+                            </p>
+                        </div>
+                    </div>
+
+                    <p id="teacher-password-message"
+                       class="ta-message"
+                       role="status"
+                       aria-live="polite"
+                       hidden></p>
+
+                    <form id="teacher-password-form">
+
+                        <div class="ta-field-grid ta-one-column">
+
+                            <label>
+                                New password
+                                <input type="password"
+                                       name="new_password"
+                                       minlength="8"
+                                       maxlength="128"
+                                       autocomplete="new-password"
+                                       placeholder="At least 8 characters"
+                                       required>
+                            </label>
+
+                            <label>
+                                Confirm new password
+                                <input type="password"
+                                       name="confirm_password"
+                                       minlength="8"
+                                       maxlength="128"
+                                       autocomplete="new-password"
+                                       placeholder="Re-enter new password"
+                                       required>
+                            </label>
+
+                        </div>
+
+                        <p class="ta-help">
+                            After resetting, the teacher must sign in
+                            with the new password.
+                        </p>
+
+                        <div class="ta-form-footer">
+                            <button type="submit" class="ta-button">
+                                Reset password →
+                            </button>
+                        </div>
+
+                    </form>
+
+                </section>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <footer class="ta-footer">
+        Smart Campus · Developed by Md. Aminul Islam
+    </footer>
+
+</div>
+
+<script type="module">
+    import("../js/teacher-management.js").catch(() => {
+        const message = document.getElementById("module-loading");
+
+        message.textContent =
+            "Could not load this page. Check the JavaScript file path and refresh.";
+
+        message.hidden = false;
+    });
+</script>
+
+</body>
+</html>
