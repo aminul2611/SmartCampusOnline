@@ -2,83 +2,106 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1"
   >
+  <meta name="theme-color" content="#153c30">
 
-  <title>Teacher Workspace · Smart Campus</title>
+  <title>Teacher Portal · Smart Campus</title>
 
-  <link rel="stylesheet" href="../static/teacher/layout.css">
-  <link rel="stylesheet" href="../static/teacher/sidebar.css">
-  <link rel="stylesheet" href="../static/teacher/profile.css">
-  <link rel="stylesheet" href="../static/teacher/portal.css?v=2">
+  <link
+    rel="stylesheet"
+    href="../static/teacher/portal.css?v=6"
+  >
 </head>
 
-<body data-timezone="Asia/Shanghai">
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#dashboard">
+      <span class="brand-logo">SC</span>
 
-  <aside class="sidebar teacher-sidebar">
-
-    <a class="brand tsb-brand" href="#dashboard">
-      <span class="logo tsb-logo">SC</span>
-
-      <span class="tsb-brand-copy">
+      <span>
         <strong>Smart Campus</strong>
         <small>Teacher workspace</small>
       </span>
     </a>
 
-    <div class="tsb-menu-label">YOUR WORKSPACE</div>
+    <span class="menu-label">TEACHING</span>
 
     <nav class="tsb-nav" aria-label="Teacher menu">
-
-      <a class="tsb-link" href="#dashboard">
-        <span class="tsb-icon">▦</span>
-        <span class="tsb-label">Dashboard</span>
+      <a href="#dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/>
+        </svg>
+        <span>Dashboard</span>
       </a>
 
-      <a class="tsb-link" href="#students">
-        <span class="tsb-icon">♙</span>
-        <span class="tsb-label">Student Details</span>
+      <a href="#students">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="9" cy="8" r="3"/>
+          <path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/>
+        </svg>
+        <span>Student Details</span>
       </a>
 
-      <a class="tsb-link" href="#marks">
-        <span class="tsb-icon">✓</span>
-        <span class="tsb-label">Student Marks</span>
+      <a href="#classes">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="16" rx="2"/>
+          <path d="M7 3v4M17 3v4M3 11h18"/>
+        </svg>
+        <span>Daily Classes</span>
       </a>
 
-      <a class="tsb-link" href="#attendance">
-        <span class="tsb-icon">☑</span>
-        <span class="tsb-label">Student Attendance</span>
+      <a href="#attendance">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="4" y="4" width="16" height="17" rx="2"/>
+          <path d="M8 2v4M16 2v4M4 10h16M8 15l3 3 5-5"/>
+        </svg>
+        <span>Student Attendance</span>
       </a>
 
-      <a class="tsb-link" href="#classes">
-        <span class="tsb-icon">▤</span>
-        <span class="tsb-label">Daily Classes</span>
+      <a href="#reports">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 3v18h17M8 16v-5M13 16V7M18 16v-8"/>
+        </svg>
+        <span>Student Reports</span>
       </a>
 
-      <a class="tsb-link" href="#notices">
-        <span class="tsb-icon">▤</span>
-        <span class="tsb-label">Notices</span>
+      <a href="#marks">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 3H5v18h14V8zM14 3v5h5M8 12h7M8 16h5"/>
+        </svg>
+        <span>Student Marks</span>
       </a>
 
-      <a class="tsb-link" href="#my-attendance">
-        <span class="tsb-icon">◷</span>
-        <span class="tsb-label">My Attendance</span>
+      <a href="#notices">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 10v6h4l12 5V5L7 10zM7 16l2 6M22 9v8"/>
+        </svg>
+        <span>Notices</span>
       </a>
 
-      <a class="tsb-link" href="#profile">
-        <span class="tsb-icon">◎</span>
-        <span class="tsb-label">Teacher Profile</span>
+      <a href="#my-attendance">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 7v5l3 2"/>
+        </svg>
+        <span>My Attendance</span>
       </a>
 
+      <a href="#profile">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 22v-2a8 8 0 0 1 16 0v2"/>
+        </svg>
+        <span>Teacher Profile</span>
+      </a>
     </nav>
 
-    <div class="tsb-bottom">
-
-      <div class="tsb-account">
-        <span class="tsb-avatar" data-initial>T</span>
+    <div class="sidebar-bottom">
+      <div class="sidebar-account">
+        <span class="avatar" data-initial>T</span>
 
         <div>
           <strong data-teacher-name>Teacher</strong>
@@ -86,86 +109,90 @@
         </div>
       </div>
 
-      <form class="logout tsb-logout" id="logout">
-        <button type="submit">
-          ↪ Log out
-          <span class="tsb-logout-arrow">→</span>
+      <form id="logout">
+        <button type="submit" class="logout-button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 4H4v16h5M13 7l5 5-5 5M8 12h12"/>
+          </svg>
+          Log out
         </button>
       </form>
-
     </div>
-
   </aside>
 
   <div class="workspace">
-
     <header class="topbar">
-
-      <div>
-        <strong id="page-title">Teacher Workspace</strong>
+      <div class="topbar-title">
+        <strong id="page-title">Teacher Portal</strong>
         <small id="live-date"></small>
       </div>
 
-      <div class="header-right">
-
-        <label class="search">
+      <div class="topbar-actions">
+        <label class="page-search">
           <span class="sr-only">Search this page</span>
+
           <input
             id="page-search"
             type="search"
-            placeholder="Search this page"
+            placeholder="Search this page…"
           >
         </label>
 
         <time id="live-time">—</time>
 
         <button
+          id="refresh"
           type="button"
           class="secondary"
-          id="refresh"
         >
           Refresh
         </button>
 
-        <a href="#profile" class="avatar" data-initial>T</a>
-
+        <a
+          href="#profile"
+          class="avatar header-avatar"
+          data-initial
+          aria-label="Open Teacher Profile"
+        >T</a>
       </div>
-
     </header>
 
     <main>
-
       <p
         id="status"
         class="flash"
         role="status"
         aria-live="polite"
       >
-        Loading Teacher workspace…
+        Loading your workspace…
       </p>
 
-      <button type="button" id="retry" hidden>
+      <button id="retry" type="button" hidden>
         Try again
       </button>
 
       <div id="content" hidden></div>
-
     </main>
 
     <footer>
       Smart Campus · Developed by Md. Aminul Islam
     </footer>
-
   </div>
 
   <script type="module">
-    import("../js/teacher-workspace.js?v=2").catch(error => {
-      document.getElementById("status").textContent =
-        "Could not load Teacher workspace: " + error.message;
+    import("../js/teacher-workspace.js?v=6").catch(() => {
+      const status = document.getElementById("status");
 
-      document.getElementById("retry").hidden = false;
+      status.textContent =
+        "The Teacher Portal could not load. Check your connection and refresh.";
+
+      status.className = "flash danger";
+      status.hidden = false;
+
+      const retry = document.getElementById("retry");
+      retry.hidden = false;
+      retry.onclick = () => location.reload();
     });
   </script>
-
 </body>
 </html>
