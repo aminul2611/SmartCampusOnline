@@ -162,8 +162,7 @@ function successFeedbackKey(form) {
 }
 
 function installFeedback() {
-  document
-    .querySelectorAll('form[data-kind]')
+  document.querySelectorAll('form[data-kind]')
     .forEach(form => {
       const key = feedbackKey(form);
 
@@ -235,9 +234,7 @@ function message(
     if (node) {
       const details = node.closest('details');
 
-      if (details) {
-        details.open = true;
-      }
+      if (details) details.open = true;
 
       node.scrollIntoView?.({
         block: 'nearest',
@@ -263,8 +260,7 @@ function lock(value) {
   $('working').hidden =
     !value || !!activeFeedbackKey;
 
-  document
-    .querySelectorAll('button')
+  document.querySelectorAll('button')
     .forEach(button => {
       button.disabled = value;
     });
@@ -311,36 +307,24 @@ async function api(path, body) {
   );
 
   try {
-    const response = await fetch(
-      '/api' + path,
-      {
-        method:
-          body === undefined
-            ? 'GET'
-            : 'POST',
+    const response = await fetch('/api' + path, {
+      method: body === undefined ? 'GET' : 'POST',
 
-        headers: {
-          Authorization: 'Bearer ' + token,
-          'Content-Type': 'application/json'
-        },
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
 
-        ...(
-          body === undefined
-            ? {}
-            : {
-                body: JSON.stringify(body)
-              }
-        ),
+      ...(body === undefined
+        ? {}
+        : { body: JSON.stringify(body) }),
 
-        signal: controller.signal
-      }
-    );
+      signal: controller.signal
+    });
 
     if (
-      !(
-        response.headers.get('content-type') ||
-        ''
-      ).includes('application/json')
+      !(response.headers.get('content-type') || '')
+        .includes('application/json')
     ) {
       throw Error(
         'Admin information is unavailable. Please retry.'
@@ -370,22 +354,18 @@ async function api(path, body) {
 }
 
 function identity() {
-  document
-    .querySelectorAll('[data-admin-name]')
+  document.querySelectorAll('[data-admin-name]')
     .forEach(element => {
       element.textContent =
-        state.profile?.name ||
-        'Administrator';
+        state.profile?.name || 'Administrator';
     });
 
-  document
-    .querySelectorAll('[data-admin-initial]')
+  document.querySelectorAll('[data-admin-initial]')
     .forEach(element => {
-      element.textContent = (
-        state.profile?.name || 'A'
-      )
-        .slice(0, 1)
-        .toUpperCase();
+      element.textContent =
+        (state.profile?.name || 'A')
+          .slice(0, 1)
+          .toUpperCase();
     });
 
   $('admin-email').textContent =
@@ -492,9 +472,7 @@ async function mutate(
 
     if (path.startsWith('/classes')) {
       window.dispatchEvent(
-        new CustomEvent(
-          'campus-classes-changed'
-        )
+        new CustomEvent('campus-classes-changed')
       );
     }
 
@@ -525,20 +503,14 @@ async function mutate(
 
 function requestId(type) {
   const storageKey =
-    'smart-campus.admin.' +
-    uid +
-    '.' +
-    type;
+    'smart-campus.admin.' + uid + '.' + type;
 
   let value = sessionStorage.getItem(
     storageKey
   );
 
-  if (
-    !/^[a-f0-9]{32}$/.test(value || '')
-  ) {
-    value = crypto
-      .randomUUID()
+  if (!/^[a-f0-9]{32}$/.test(value || '')) {
+    value = crypto.randomUUID()
       .replaceAll('-', '');
 
     sessionStorage.setItem(
@@ -552,10 +524,7 @@ function requestId(type) {
 
 function clearId(type) {
   sessionStorage.removeItem(
-    'smart-campus.admin.' +
-    uid +
-    '.' +
-    type
+    'smart-campus.admin.' + uid + '.' + type
   );
 }
 
@@ -572,22 +541,14 @@ const classOf = id =>
   );
 
 const number = value =>
-  Number(value).toLocaleString(
-    'en-GB',
-    {
-      maximumFractionDigits: 2
-    }
-  );
+  Number(value).toLocaleString('en-GB', {
+    maximumFractionDigits: 2
+  });
 
 const percentage = value =>
-  value == null
-    ? '—'
-    : number(value) + '%';
+  value == null ? '—' : number(value) + '%';
 
-function badge(
-  text,
-  tone = 'neutral'
-) {
+function badge(text, tone = 'neutral') {
   return `
     <span class="badge ${tone}">
       ${h(text)}
@@ -647,9 +608,7 @@ function select(
         name="${name}"
         ${required ? 'required' : ''}
       >
-        <option value="">
-          Select…
-        </option>
+        <option value="">Select…</option>
 
         ${items.map(([id, text]) => `
           <option
@@ -673,12 +632,7 @@ function panel(
       <div class="section-heading">
         <div>
           <h2>${h(title)}</h2>
-
-          ${
-            copy
-              ? `<p>${h(copy)}</p>`
-              : ''
-          }
+          ${copy ? `<p>${h(copy)}</p>` : ''}
         </div>
 
         ${extra}
@@ -701,28 +655,22 @@ function table(head, rows) {
         <thead>
           <tr>
             ${head.map(text => `
-              <th scope="col">
-                ${h(text)}
-              </th>
+              <th scope="col">${h(text)}</th>
             `).join('')}
           </tr>
         </thead>
 
         <tbody>
-          ${
-            rows.join('') ||
-
-            `
-              <tr>
-                <td
-                  colspan="${head.length}"
-                  class="empty-state"
-                >
-                  No records to display.
-                </td>
-              </tr>
-            `
-          }
+          ${rows.join('') || `
+            <tr>
+              <td
+                colspan="${head.length}"
+                class="empty-state"
+              >
+                No records to display.
+              </td>
+            </tr>
+          `}
         </tbody>
       </table>
     </div>
@@ -742,13 +690,11 @@ function metrics(items) {
   `;
 }
 
-/* Summer / Spring and editable year */
+/* Semester and year */
 
 function displayTerm(value) {
-  return (
-    termInfo(value)?.label ||
-    String(value || '')
-  );
+  return termInfo(value)?.label ||
+    String(value || '');
 }
 
 function termSearch(value) {
@@ -779,10 +725,7 @@ function termInfo(value) {
 
   const year = Number(match[2]);
 
-  if (
-    year < 1900 ||
-    year > 9999
-  ) {
+  if (year < 1900 || year > 9999) {
     return null;
   }
 
@@ -796,21 +739,17 @@ function termInfo(value) {
     year,
     label: season + ' ' + year,
 
-    start:
-      year +
-      (
-        season === 'Summer'
-          ? '-01-01'
-          : '-07-01'
-      ),
+    start: year + (
+      season === 'Summer'
+        ? '-01-01'
+        : '-07-01'
+    ),
 
-    end:
-      year +
-      (
-        season === 'Summer'
-          ? '-06-30'
-          : '-12-31'
-      )
+    end: year + (
+      season === 'Summer'
+        ? '-06-30'
+        : '-12-31'
+    )
   };
 }
 
@@ -819,13 +758,10 @@ function currentTerm() {
 
   return termInfo(
     (
-      Number(
-        date.slice(5, 7)
-      ) <= 6
+      Number(date.slice(5, 7)) <= 6
         ? 'Summer '
         : 'Spring '
-    ) +
-    date.slice(0, 4)
+    ) + date.slice(0, 4)
   );
 }
 
@@ -834,12 +770,10 @@ function termFields(value = '') {
     String(value || '').trim();
 
   const info =
-    termInfo(existing) ||
-    currentTerm();
+    termInfo(existing) || currentTerm();
 
   const legacy =
-    existing &&
-    !termInfo(existing);
+    existing && !termInfo(existing);
 
   return `
     <div
@@ -853,33 +787,20 @@ function termFields(value = '') {
         'term_name',
 
         [
-          [
-            'Summer',
-            'Summer · January–June'
-          ],
+          ['Summer', 'Summer · January–June'],
+          ['Spring', 'Spring · July–December'],
 
-          [
-            'Spring',
-            'Spring · July–December'
-          ],
-
-          ...(
-            legacy
-              ? [
-                  [
-                    '__legacy',
-                    'Keep existing: ' +
-                      existing
-                  ]
+          ...(legacy
+            ? [
+                [
+                  '__legacy',
+                  'Keep existing: ' + existing
                 ]
-              : []
-          )
+              ]
+            : [])
         ],
 
-        legacy
-          ? '__legacy'
-          : info.season,
-
+        legacy ? '__legacy' : info.season,
         true
       )}
 
@@ -890,9 +811,7 @@ function termFields(value = '') {
         'number',
 
         `min="1900" max="9999" step="1" ${
-          legacy
-            ? 'disabled'
-            : 'required'
+          legacy ? 'disabled' : 'required'
         }`
       )}
 
@@ -900,20 +819,13 @@ function termFields(value = '') {
         class="term-preview"
         data-term-preview
       >
-        ${h(
-          legacy
-            ? existing
-            : info.label
-        )}
+        ${h(legacy ? existing : info.label)}
       </small>
     </div>
   `;
 }
 
-function buildTerm(
-  data,
-  original = ''
-) {
+function buildTerm(data, original = '') {
   if (
     data.term_name === '__legacy' &&
     original &&
@@ -927,10 +839,9 @@ function buildTerm(
   );
 
   if (
-    ![
-      'Summer',
-      'Spring'
-    ].includes(data.term_name) ||
+    !['Summer', 'Spring'].includes(
+      data.term_name
+    ) ||
 
     !/^\d{4}$/.test(year) ||
 
@@ -943,14 +854,15 @@ function buildTerm(
     );
   }
 
-  return (
-    data.term_name +
+  return data.term_name +
     ' ' +
-    Number(year)
-  );
+    Number(year);
 }
 
-function termFilterFields(filter) {
+function termFilterFields(
+  filter,
+  currentOnly = false
+) {
   return field(
     'Year (blank = all)',
     'year',
@@ -960,19 +872,15 @@ function termFilterFields(filter) {
   ) +
 
   select(
-    'Semester (blank = all)',
+    currentOnly
+      ? 'Current semester (blank = all)'
+      : 'Semester (blank = all)',
+
     'season',
 
     [
-      [
-        'Summer',
-        'Summer · January–June'
-      ],
-
-      [
-        'Spring',
-        'Spring · July–December'
-      ]
+      ['Summer', 'Summer · January–June'],
+      ['Spring', 'Spring · July–December']
     ],
 
     filter.season
@@ -982,6 +890,7 @@ function termFilterFields(filter) {
 function checkTermFilter(data) {
   if (
     data.year &&
+
     (
       !/^\d{4}$/.test(data.year) ||
       Number(data.year) < 1900 ||
@@ -996,10 +905,9 @@ function checkTermFilter(data) {
   if (
     data.season &&
 
-    ![
-      'Summer',
-      'Spring'
-    ].includes(data.season)
+    !['Summer', 'Spring'].includes(
+      data.season
+    )
   ) {
     throw Error(
       'Choose Summer, Spring, or all semesters.'
@@ -1030,6 +938,10 @@ function matchesTerm(value, filter) {
     );
 }
 
+/*
+ * Academic Reports may match current or previous
+ * enrolment semesters.
+ */
 function studentMatchesTerm(user, filter) {
   return [
     user.semester,
@@ -1042,13 +954,10 @@ function studentMatchesTerm(user, filter) {
       .map(
         item =>
           item.semester ||
-          classOf(
-            item.class_id
-          )?.semester
+          classOf(item.class_id)?.semester
       )
   ].some(
-    term =>
-      matchesTerm(term, filter)
+    term => matchesTerm(term, filter)
   );
 }
 
@@ -1059,18 +968,10 @@ function earlierTerm(term, current) {
   if (a && b) {
     return (
       a.year * 2 +
-      (
-        a.season === 'Spring'
-          ? 1
-          : 0
-      )
+      (a.season === 'Spring' ? 1 : 0)
     ) < (
       b.year * 2 +
-      (
-        b.season === 'Spring'
-          ? 1
-          : 0
-      )
+      (b.season === 'Spring' ? 1 : 0)
     );
   }
 
@@ -1086,7 +987,6 @@ function earlierTerm(term, current) {
 
   return !!aNumber &&
     !!bNumber &&
-
     Number(aNumber[1]) <
       Number(bNumber[1]);
 }
@@ -1134,9 +1034,7 @@ function syncTermFields(group) {
 
   if (
     semesterKey(value) !==
-      semesterKey(
-        group.dataset.value
-      ) &&
+      semesterKey(group.dataset.value) &&
 
     form.dataset.kind === 'class'
   ) {
@@ -1164,22 +1062,17 @@ function syncTermFields(group) {
 
         (
           old &&
-          session.value ===
-            String(old.year)
+          session.value === String(old.year)
         )
       ) {
-        session.value =
-          String(info.year);
+        session.value = String(info.year);
       } else if (
         old &&
 
-        semesterKey(
-          session.value
-        ) ===
+        semesterKey(session.value) ===
           semesterKey(old.label)
       ) {
-        session.value =
-          info.label;
+        session.value = info.label;
       }
     }
   }
@@ -1197,8 +1090,7 @@ function termList() {
         ),
 
         ...state.users.map(
-          user =>
-            user.semester
+          user => user.semester
         )
       ].filter(Boolean)
     )
@@ -1207,9 +1099,7 @@ function termList() {
       a.localeCompare(
         b,
         undefined,
-        {
-          numeric: true
-        }
+        { numeric: true }
       )
   );
 }
@@ -1218,8 +1108,7 @@ function dateTime(value) {
   if (value == null) return '—';
 
   const seconds =
-    value?.seconds ??
-    value?._seconds;
+    value?.seconds ?? value?._seconds;
 
   const parsed = new Date(
     seconds != null
@@ -1230,14 +1119,12 @@ function dateTime(value) {
   return Number.isFinite(
     parsed.getTime()
   )
-    ? new Intl.DateTimeFormat(
-        'en-GB',
-        {
-          timeZone: 'Asia/Shanghai',
-          hour: '2-digit',
-          minute: '2-digit'
-        }
-      ).format(parsed)
+    ? new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(parsed)
+
     : '—';
 }
 
@@ -1249,10 +1136,7 @@ function noticeCards(items) {
       </summary>
 
       <small>
-        ${h(
-          notice.author_name ||
-          'Campus'
-        )}
+        ${h(notice.author_name || 'Campus')}
       </small>
 
       <div class="notice-body">
@@ -1261,21 +1145,14 @@ function noticeCards(items) {
     </details>
   `).join('') ||
 
-  `
-    <p class="empty-state">
-      No notices yet.
-    </p>
-  `;
+  '<p class="empty-state">No notices yet.</p>';
 }
 
 /* Dashboard */
 
 function dashboard() {
-  const overview =
-    state.overview;
-
-  const attendance =
-    overview.attendance;
+  const overview = state.overview;
+  const attendance = overview.attendance;
 
   return metrics(
     Object.entries(
@@ -1289,8 +1166,7 @@ function dashboard() {
   ) +
 
   panel(
-    'Attendance · ' +
-      overview.date,
+    'Attendance · ' + overview.date,
 
     metrics([
       [
@@ -1298,37 +1174,17 @@ function dashboard() {
         attendance.teacher_checkins
       ],
 
-      [
-        'Sessions',
-        attendance.sessions
-      ],
-
-      [
-        'Present records',
-        attendance.Present
-      ],
-
-      [
-        'Late records',
-        attendance.Late
-      ],
-
-      [
-        'Absent records',
-        attendance.Absent
-      ],
-
-      [
-        'Excused records',
-        attendance.Excused
-      ]
+      ['Sessions', attendance.sessions],
+      ['Present records', attendance.Present],
+      ['Late records', attendance.Late],
+      ['Absent records', attendance.Absent],
+      ['Excused records', attendance.Excused]
     ]) +
 
     `
       <p class="info-note">
         Student figures count saved attendance records,
         not unique people.
-
         Open Academic Reports for student totals.
       </p>
     `
@@ -1351,6 +1207,7 @@ function dashboard() {
           Review conflicts →
         </a>
       `
+
       : `
         <p class="info-note">
           No conflicts found in the current active timetable.
@@ -1360,10 +1217,7 @@ function dashboard() {
 
   panel(
     'Latest notices',
-
-    noticeCards(
-      overview.recent_notices
-    )
+    noticeCards(overview.recent_notices)
   );
 }
 
@@ -1379,6 +1233,10 @@ function accounts(role) {
     user => user.role === role
   );
 
+  /*
+   * Student Management filters only the current
+   * semester saved in the student's profile.
+   */
   const visible = users.filter(
     user =>
       termSearch(
@@ -1390,15 +1248,14 @@ function accounts(role) {
           user.department
         ].join(' ')
       ).includes(
-        termSearch(
-          directorySearch
-        )
+        termSearch(directorySearch)
       ) &&
 
       (
         !isStudent ||
-        studentMatchesTerm(
-          user,
+
+        matchesTerm(
+          user.semester,
           directoryFilter
         )
       )
@@ -1476,9 +1333,7 @@ function accounts(role) {
                   'maxlength="150"'
                 ) +
 
-                termFields(
-                  edit?.semester
-                )
+                termFields(edit?.semester)
 
               : field(
                   'Designation',
@@ -1500,10 +1355,7 @@ function accounts(role) {
                     ['0', 'Disabled']
                   ],
 
-                  edit.active
-                    ? '1'
-                    : '0',
-
+                  edit.active ? '1' : '0',
                   true
                 )
 
@@ -1531,7 +1383,6 @@ function accounts(role) {
               <p class="info-note">
                 Summer runs January–June;
                 Spring runs July–December.
-
                 Year is editable.
 
                 Updating the current semester does not
@@ -1584,8 +1435,23 @@ function accounts(role) {
         ${
           isStudent
             ? termFilterFields(
-                directoryFilter
+                directoryFilter,
+                true
               )
+            : ''
+        }
+
+        ${
+          isStudent
+            ? `
+              <p class="muted">
+                Year and Semester match the student's
+                current profile semester.
+
+                Use Academic Reports or Semester History
+                for previous enrolled semesters.
+              </p>
+            `
             : ''
         }
 
@@ -1625,8 +1491,7 @@ function accounts(role) {
         <tr>
           <td>
             ${h(
-              user[role + '_no'] ||
-              '—'
+              user[role + '_no'] || '—'
             )}
           </td>
 
@@ -1643,9 +1508,7 @@ function accounts(role) {
           <td>
             ${h(
               isStudent
-                ? displayTerm(
-                    user.semester
-                  )
+                ? displayTerm(user.semester)
                 : user.department
             )}
           </td>
@@ -1714,7 +1577,11 @@ function accounts(role) {
       `)
     ),
 
-    users.length + ' accounts'
+    'Showing ' +
+    visible.length +
+    ' of ' +
+    users.length +
+    ' accounts'
   ) +
 
   (
@@ -1733,12 +1600,9 @@ function teacherAttendance() {
 
   const records = (
     work?.records || []
-  ).filter(
-    record =>
-      !work?.teacher ||
-
-      record.teacher_id ===
-        work.teacher
+  ).filter(record =>
+    !work?.teacher ||
+    record.teacher_id === work.teacher
   );
 
   const rows = records.map(record => {
@@ -1753,45 +1617,30 @@ function teacherAttendance() {
     const minutes =
       checkIn != null &&
       checkOut != null
+
         ? Math.max(
             0,
             Math.floor(
-              (
-                checkOut -
-                checkIn
-              ) / 60
+              (checkOut - checkIn) / 60
             )
           )
+
         : null;
 
     return `
       <tr>
+        <td>${h(record.work_date)}</td>
+
         <td>
-          ${h(record.work_date)}
+          ${h(nameOf(record.teacher_id))}
         </td>
 
         <td>
-          ${h(
-            nameOf(
-              record.teacher_id
-            )
-          )}
+          ${h(dateTime(record.check_in))}
         </td>
 
         <td>
-          ${h(
-            dateTime(
-              record.check_in
-            )
-          )}
-        </td>
-
-        <td>
-          ${h(
-            dateTime(
-              record.check_out
-            )
-          )}
+          ${h(dateTime(record.check_out))}
         </td>
 
         <td>
@@ -1799,14 +1648,9 @@ function teacherAttendance() {
             minutes == null
               ? '—'
 
-              : Math.floor(
-                  minutes / 60
-                ) +
-
+              : Math.floor(minutes / 60) +
                 'h ' +
-
                 minutes % 60 +
-
                 'm'
           }
         </td>
@@ -1837,8 +1681,7 @@ function teacherAttendance() {
           state.users
             .filter(
               user =>
-                user.role ===
-                'teacher'
+                user.role === 'teacher'
             )
             .map(user => [
               user.id,
@@ -1946,53 +1789,20 @@ function conflictsTable() {
           'Time'
         ],
 
-        state.conflicts.map(
-          conflict => `
-            <tr>
-              <td>
-                ${h(
-                  conflict.person_name
-                )}
+        state.conflicts.map(conflict => `
+          <tr>
+            <td>
+              ${h(conflict.person_name)}
+              <small>${h(conflict.kind)}</small>
+            </td>
 
-                <small>
-                  ${h(
-                    conflict.kind
-                  )}
-                </small>
-              </td>
-
-              <td>
-                ${h(
-                  conflict.date
-                )}
-              </td>
-
-              <td>
-                ${h(
-                  conflict.name_a
-                )}
-              </td>
-
-              <td>
-                ${h(
-                  conflict.time_a
-                )}
-              </td>
-
-              <td>
-                ${h(
-                  conflict.name_b
-                )}
-              </td>
-
-              <td>
-                ${h(
-                  conflict.time_b
-                )}
-              </td>
-            </tr>
-          `
-        )
+            <td>${h(conflict.date)}</td>
+            <td>${h(conflict.name_a)}</td>
+            <td>${h(conflict.time_a)}</td>
+            <td>${h(conflict.name_b)}</td>
+            <td>${h(conflict.time_b)}</td>
+          </tr>
+        `)
       )
 
     : `
@@ -2021,41 +1831,37 @@ function classesPage() {
   );
 
   const eligible =
-    state.users.filter(
-      user =>
-        user.role === 'student' &&
-        user.active &&
-        user.provisioning !== 'pending' &&
+    state.users.filter(user =>
+      user.role === 'student' &&
+      user.active &&
+      user.provisioning !== 'pending' &&
 
-        !active.some(
-          enrolment =>
-            enrolment.student_id ===
-            user.id
-        )
+      !active.some(
+        enrolment =>
+          enrolment.student_id ===
+          user.id
+      )
     );
 
   const visible =
-    state.classes.filter(
-      classroom =>
-        termSearch(
-          [
-            classroom.code,
-            classroom.name,
-            classroom.semester,
-            classroom.academic_session,
-            classroom.section,
-            nameOf(
-              classroom.teacher_id
-            )
-          ].join(' ')
-        ).includes(
-          termSearch(classSearch)
-        ) &&
-
-        matchesTerm(
+    state.classes.filter(classroom =>
+      termSearch(
+        [
+          classroom.code,
+          classroom.name,
           classroom.semester,
-          classFilter
-        )
+          classroom.academic_session,
+          classroom.section,
+          nameOf(classroom.teacher_id)
+        ].join(' ')
+      ).includes(
+        termSearch(classSearch)
+      ) &&
+
+      matchesTerm(
+        classroom.semester,
+        classFilter
+      )
     );
 
   return panel(
@@ -2071,11 +1877,7 @@ function classesPage() {
       ${edit ? 'open' : ''}
     >
       <summary>
-        ${
-          edit
-            ? 'Edit class'
-            : '＋ Create class'
-        }
+        ${edit ? 'Edit class' : '＋ Create class'}
       </summary>
 
       <form
@@ -2099,17 +1901,13 @@ function classesPage() {
 
             displayTerm(
               edit?.academic_session ??
-              String(
-                currentTerm().year
-              )
+              String(currentTerm().year)
             ),
 
             'text',
 
             `maxlength="80" ${
-              edit
-                ? 'readonly'
-                : ''
+              edit ? 'readonly' : ''
             }`
           )}
 
@@ -2120,9 +1918,7 @@ function classesPage() {
             'text',
 
             `maxlength="80" ${
-              edit
-                ? 'readonly'
-                : ''
+              edit ? 'readonly' : ''
             }`
           )}
 
@@ -2131,21 +1927,18 @@ function classesPage() {
             'teacher_id',
 
             state.users
-              .filter(
-                user =>
-                  user.role === 'teacher' &&
+              .filter(user =>
+                user.role === 'teacher' &&
 
-                  (
-                    user.active ||
-                    user.id ===
-                      edit?.teacher_id
-                  )
+                (
+                  user.active ||
+                  user.id === edit?.teacher_id
+                )
               )
               .map(user => [
                 user.id,
 
                 user.name +
-
                 (
                   user.active
                     ? ''
@@ -2219,18 +2012,14 @@ function classesPage() {
           and marks remain in their original term.
         </p>
 
-        <h3>
-          Weekly routine
-        </h3>
+        <h3>Weekly routine</h3>
 
         <div id="slots">
           ${
             (
               edit?.weekly_slots ||
               [undefined]
-            )
-              .map(slot)
-              .join('')
+            ).map(slot).join('')
           }
         </div>
 
@@ -2349,12 +2138,10 @@ function classesPage() {
           <td>
             ${
               (
-                classroom.weekly_slots ||
-                []
-              ).map(
-                value =>
-                  `${h(days[value.day])} ` +
-                  `${h(value.start)}–${h(value.end)}`
+                classroom.weekly_slots || []
+              ).map(value =>
+                `${h(days[value.day])} ` +
+                `${h(value.start)}–${h(value.end)}`
               ).join('<br>')
             }
           </td>
@@ -2406,12 +2193,11 @@ function classesPage() {
       'roster_class',
 
       state.classes
-        .filter(
-          classroom =>
-            matchesTerm(
-              classroom.semester,
-              classFilter
-            )
+        .filter(classroom =>
+          matchesTerm(
+            classroom.semester,
+            classFilter
+          )
         )
         .map(classroom => [
           classroom.id,
@@ -2462,10 +2248,7 @@ function classesPage() {
                     eligible.map(user => [
                       user.id,
 
-                      (
-                        user.student_no ||
-                        '—'
-                      ) +
+                      (user.student_no || '—') +
                       ' — ' +
                       user.name
                     ]),
@@ -2510,24 +2293,17 @@ function classesPage() {
 
                 <td>
                   ${h(
-                    state.users.find(
-                      user =>
-                        user.id ===
-                        enrolment.student_id
-                    )?.student_no ||
-
-                    '—'
+                    state.users.find(user =>
+                      user.id ===
+                      enrolment.student_id
+                    )?.student_no || '—'
                   )}
                 </td>
 
                 <td>
                   ${h(
-                    enrolment.periods
-                      ?.at(-1)
-                      ?.from ||
-
+                    enrolment.periods?.at(-1)?.from ||
                     enrolment.joined_on ||
-
                     '—'
                   )}
                 </td>
@@ -2557,51 +2333,42 @@ function classesPage() {
                 'Status'
               ],
 
-              enrolled.flatMap(
-                enrolment =>
-                  (
-                    enrolment.periods ||
-                    []
-                  ).map(period => `
-                    <tr>
-                      <td>
-                        ${h(
-                          nameOf(
-                            enrolment.student_id
-                          )
-                        )}
-                      </td>
+              enrolled.flatMap(enrolment =>
+                (
+                  enrolment.periods || []
+                ).map(period => `
+                  <tr>
+                    <td>
+                      ${h(
+                        nameOf(
+                          enrolment.student_id
+                        )
+                      )}
+                    </td>
 
-                      <td>
-                        ${h(period.from)}
+                    <td>
+                      ${h(period.from)}
 
-                        ${
-                          period.inferred
-                            ? `
-                              <small>
-                                Legacy dates
-                              </small>
-                            `
-                            : ''
-                        }
-                      </td>
+                      ${
+                        period.inferred
+                          ? '<small>Legacy dates</small>'
+                          : ''
+                      }
+                    </td>
 
-                      <td>
-                        ${h(
-                          period.to ||
-                          '—'
-                        )}
-                      </td>
+                    <td>
+                      ${h(period.to || '—')}
+                    </td>
 
-                      <td>
-                        ${badge(
-                          period.to
-                            ? 'Closed'
-                            : 'Current'
-                        )}
-                      </td>
-                    </tr>
-                  `)
+                    <td>
+                      ${badge(
+                        period.to
+                          ? 'Closed'
+                          : 'Current'
+                      )}
+                    </td>
+                  </tr>
+                `)
               )
             )}
           </details>
@@ -2637,10 +2404,8 @@ function semesterKey(value) {
       .exec(name);
 
   if (numeric) {
-    return (
-      'semester ' +
-      Number(numeric[1])
-    );
+    return 'semester ' +
+      Number(numeric[1]);
   }
 
   return name.replace(
@@ -2652,12 +2417,9 @@ function semesterKey(value) {
 function resultNumber(value) {
   return Number(
     Number(value).toPrecision(15)
-  ).toLocaleString(
-    'en-GB',
-    {
-      maximumFractionDigits: 12
-    }
-  );
+  ).toLocaleString('en-GB', {
+    maximumFractionDigits: 12
+  });
 }
 
 function courseResult(course) {
@@ -2668,10 +2430,9 @@ function courseResult(course) {
   ];
 
   const valid = value =>
-    [
-      'number',
-      'string'
-    ].includes(typeof value) &&
+    ['number', 'string'].includes(
+      typeof value
+    ) &&
 
     String(value).trim() !== '' &&
 
@@ -2682,9 +2443,7 @@ function courseResult(course) {
   const maximum = keys.reduce(
     (sum, name) =>
       sum +
-      Number(
-        course[name + '_max']
-      ),
+      Number(course[name + '_max']),
 
     0
   );
@@ -2693,30 +2452,28 @@ function courseResult(course) {
     Number.isFinite(maximum) &&
     maximum > 0 &&
 
-    keys.every(
-      name =>
-        valid(
-          course[name]
-        ) &&
+    keys.every(name =>
+      valid(course[name]) &&
 
-        valid(
-          course[name + '_max']
-        ) &&
+      valid(
+        course[name + '_max']
+      ) &&
 
-        Number(
-          course[name + '_max']
-        ) >= 0 &&
+      Number(
+        course[name + '_max']
+      ) >= 0 &&
 
-        Number(
-          course[name]
-        ) >= 0 &&
+      Number(
+        course[name]
+      ) >= 0 &&
 
-        Number(
-          course[name]
-        ) <=
-          Number(
-            course[name + '_max']
-          )
+      Number(
+        course[name]
+      ) <=
+
+      Number(
+        course[name + '_max']
+      )
     );
 
   const earned = complete
@@ -2724,9 +2481,7 @@ function courseResult(course) {
         keys.reduce(
           (sum, name) =>
             sum +
-            Number(
-              course[name]
-            ),
+            Number(course[name]),
 
           0
         ).toPrecision(15)
@@ -2736,7 +2491,6 @@ function courseResult(course) {
   return {
     complete,
     earned,
-
     max: maximum,
 
     passed:
@@ -2749,8 +2503,7 @@ function resultSummary(classes) {
   const results = classes
     .map(courseResult)
     .filter(
-      result =>
-        result.complete
+      result => result.complete
     );
 
   const earned = results.reduce(
@@ -2779,8 +2532,7 @@ function resultSummary(classes) {
 
     complete:
       classes.length > 0 &&
-      results.length ===
-        classes.length
+      results.length === classes.length
   };
 }
 
@@ -2842,9 +2594,8 @@ function marksTable(classes) {
                 ${
                   course[name] == null ||
 
-                  String(
-                    course[name]
-                  ).trim() === ''
+                  String(course[name])
+                    .trim() === ''
 
                     ? '—'
 
@@ -2903,8 +2654,7 @@ function marksTable(classes) {
           <td>
             ${percentage(
               result.complete
-                ? result.earned *
-                  100 /
+                ? result.earned * 100 /
                   result.max
                 : null
             )}
@@ -2925,10 +2675,7 @@ function attendanceSummary(rows) {
   };
 
   rows
-    .filter(
-      row =>
-        row.counted
-    )
+    .filter(row => row.counted)
     .forEach(row => {
       summary[row.status]++;
     });
@@ -2952,17 +2699,14 @@ function attendanceSummary(rows) {
 
     pending:
       rows.filter(
-        row =>
-          !row.counted
+        row => !row.counted
       ).length,
 
     percentage: total
       ? (
           summary.Present +
           summary.Late
-        ) *
-        100 /
-        total
+        ) * 100 / total
       : null
   };
 }
@@ -2999,7 +2743,8 @@ function reportsPage() {
 /* Notices */
 
 function noticesPage() {
-  const edit = edits.notice;
+  const edit =
+    edits.notice;
 
   return panel(
     edit
@@ -3025,25 +2770,10 @@ function noticesPage() {
             'audience',
 
             [
-              [
-                'all',
-                'Everyone'
-              ],
-
-              [
-                'teachers',
-                'All teachers'
-              ],
-
-              [
-                'students',
-                'All students'
-              ],
-
-              [
-                'selected',
-                'Selected recipients'
-              ]
+              ['all', 'Everyone'],
+              ['teachers', 'All teachers'],
+              ['students', 'All students'],
+              ['selected', 'Selected recipients']
             ],
 
             edit?.audience || 'all',
@@ -3060,12 +2790,9 @@ function noticesPage() {
             >
               ${
                 state.users
-                  .filter(
-                    user =>
-                      user.active &&
-
-                      user.provisioning !==
-                        'pending'
+                  .filter(user =>
+                    user.active &&
+                    user.provisioning !== 'pending'
                   )
                   .map(user => `
                     <option
@@ -3138,9 +2865,7 @@ function noticesPage() {
 
     state.notices.map(notice => `
       <article class="notice-card">
-        <h3>
-          ${h(notice.title)}
-        </h3>
+        <h3>${h(notice.title)}</h3>
 
         <small>
           ${h(notice.audience)}
@@ -3285,18 +3010,11 @@ function profilePage() {
 function render() {
   if (!ready) return;
 
-  const [
-    name,
-    query = ''
-  ] = location.hash
-    .slice(1)
-    .split('?');
+  const [name, query = ''] =
+    location.hash.slice(1).split('?');
 
   const nextPage =
-    Object.hasOwn(
-      labels,
-      name
-    )
+    Object.hasOwn(labels, name)
       ? name
       : 'dashboard';
 
@@ -3315,12 +3033,9 @@ function render() {
     params.has('edit')
   ) {
     edits.teacher =
-      state.users.find(
-        user =>
-          user.role === 'teacher' &&
-
-          user.id ===
-            params.get('edit')
+      state.users.find(user =>
+        user.role === 'teacher' &&
+        user.id === params.get('edit')
       ) || null;
   }
 
@@ -3332,12 +3047,10 @@ function render() {
 
   identity();
 
-  document
-    .querySelectorAll('.tsb-nav a')
+  document.querySelectorAll('.tsb-nav a')
     .forEach(link => {
       const active =
-        link.hash ===
-        '#' + page;
+        link.hash === '#' + page;
 
       link.classList.toggle(
         'active',
@@ -3367,9 +3080,7 @@ function render() {
 
     classes: classesPage,
     reports: reportsPage,
-
     history: () => '',
-
     notices: noticesPage,
     profile: profilePage
   };
@@ -3388,9 +3099,7 @@ function render() {
           ${
             page === 'dashboard'
               ? 'Welcome back, ' +
-                h(
-                  state.profile.name
-                ) +
+                h(state.profile.name) +
                 '.'
 
               : labels[page]
@@ -3402,15 +3111,12 @@ function render() {
 
   installFeedback();
 
-  if (busy) {
-    lock(true);
-  }
+  if (busy) lock(true);
 }
 
 function passwordValid(data) {
   if (
     data.new_password.length < 8 ||
-
     data.new_password.length > 128 ||
 
     data.new_password !==
@@ -3428,9 +3134,7 @@ function closeModal() {
 
 function openModal(body) {
   $('modal').innerHTML = body;
-
   installFeedback();
-
   $('modal').showModal();
 }
 
@@ -3453,9 +3157,7 @@ async function loadReport(
   try {
     report = await api(
       '/student-reports/' +
-      encodeURIComponent(
-        studentId
-      )
+      encodeURIComponent(studentId)
     );
 
     reportScope = scope || {
@@ -3473,8 +3175,7 @@ async function loadReport(
       to: ''
     };
 
-    location.hash =
-      '#reports';
+    location.hash = '#reports';
 
     render();
 
@@ -3494,7 +3195,6 @@ async function loadReport(
     );
   } finally {
     lock(false);
-
     activeFeedbackKey = '';
   }
 }
@@ -3505,11 +3205,8 @@ document.addEventListener(
   'submit',
 
   async event => {
-    const form =
-      event.target;
-
-    const kind =
-      form.dataset.kind;
+    const form = event.target;
+    const kind = form.dataset.kind;
 
     if (!kind) return;
 
@@ -3551,8 +3248,7 @@ document.addEventListener(
 
     try {
       if (
-        kind ===
-        'directory-search'
+        kind === 'directory-search'
       ) {
         checkTermFilter(data);
 
@@ -3595,10 +3291,7 @@ document.addEventListener(
           selectedClass &&
 
           !matchesTerm(
-            classOf(
-              selectedClass
-            )?.semester,
-
+            classOf(selectedClass)?.semester,
             classFilter
           )
         ) {
@@ -3621,8 +3314,7 @@ document.addEventListener(
           data.semester =
             buildTerm(
               data,
-              edits.student
-                ?.semester || ''
+              edits.student?.semester || ''
             );
 
           delete data.term_name;
@@ -3631,13 +3323,10 @@ document.addEventListener(
           if (
             record &&
 
-            semesterKey(
-              data.semester
-            ) ===
+            semesterKey(data.semester) ===
 
             semesterKey(
-              edits.student
-                ?.semester
+              edits.student?.semester
             )
           ) {
             data.semester =
@@ -3653,9 +3342,7 @@ document.addEventListener(
             '/' +
             role +
             's/' +
-            encodeURIComponent(
-              record
-            ) +
+            encodeURIComponent(record) +
             '/account',
 
             data,
@@ -3671,10 +3358,7 @@ document.addEventListener(
             requestId(role);
 
           await submit(
-            '/' +
-            role +
-            's',
-
+            '/' + role + 's',
             data,
 
             () => {
@@ -3702,9 +3386,7 @@ document.addEventListener(
         await submit(
           record
             ? '/subjects/' +
-              encodeURIComponent(
-                record
-              ) +
+              encodeURIComponent(record) +
               '/save'
 
             : '/subjects',
@@ -3744,8 +3426,7 @@ document.addEventListener(
         data.semester =
           buildTerm(
             data,
-            edits.class
-              ?.semester || ''
+            edits.class?.semester || ''
           );
 
         delete data.term_name;
@@ -3754,9 +3435,7 @@ document.addEventListener(
         const newTerm =
           !!record &&
 
-          semesterKey(
-            data.semester
-          ) !==
+          semesterKey(data.semester) !==
 
           semesterKey(
             edits.class?.semester
@@ -3787,8 +3466,7 @@ document.addEventListener(
             edits.class.semester;
 
           data.academic_session =
-            edits.class
-              .academic_session ||
+            edits.class.academic_session ||
             '';
         }
 
@@ -3797,49 +3475,42 @@ document.addEventListener(
           newTerm
         ) {
           const duplicate =
-            state.classes.some(
-              course =>
-                String(
-                  course.code
-                )
-                  .trim()
-                  .toLowerCase() ===
+            state.classes.some(course =>
+              String(course.code)
+                .trim()
+                .toLowerCase() ===
 
-                String(
-                  data.code
-                )
-                  .trim()
-                  .toLowerCase() &&
+              String(data.code)
+                .trim()
+                .toLowerCase() &&
 
-                semesterKey(
-                  course.semester
-                ) ===
+              semesterKey(
+                course.semester
+              ) ===
 
-                semesterKey(
-                  data.semester
-                ) &&
+              semesterKey(
+                data.semester
+              ) &&
 
-                termSearch(
-                  course.academic_session
-                ) ===
+              termSearch(
+                course.academic_session
+              ) ===
 
-                termSearch(
-                  data.academic_session
-                ) &&
+              termSearch(
+                data.academic_session
+              ) &&
 
-                String(
-                  course.section ||
-                  ''
-                )
-                  .trim()
-                  .toLowerCase() ===
+              String(
+                course.section || ''
+              )
+                .trim()
+                .toLowerCase() ===
 
-                String(
-                  data.section ||
-                  ''
-                )
-                  .trim()
-                  .toLowerCase()
+              String(
+                data.section || ''
+              )
+                .trim()
+                .toLowerCase()
             );
 
           if (duplicate) {
@@ -3877,12 +3548,9 @@ document.addEventListener(
         }));
 
         await submit(
-          record &&
-          !newTerm
+          record && !newTerm
             ? '/classes/' +
-              encodeURIComponent(
-                record
-              ) +
+              encodeURIComponent(record) +
               '/save'
 
             : '/classes',
@@ -3917,9 +3585,7 @@ document.addEventListener(
       ) {
         await submit(
           '/classes/' +
-          encodeURIComponent(
-            record
-          ) +
+          encodeURIComponent(record) +
           '/enrolments',
 
           data
@@ -3929,8 +3595,7 @@ document.addEventListener(
       }
 
       if (
-        kind ===
-        'close-enrolment'
+        kind === 'close-enrolment'
       ) {
         await submit(
           '/classes/' +
@@ -3938,9 +3603,7 @@ document.addEventListener(
             selectedClass
           ) +
           '/enrolments/' +
-          encodeURIComponent(
-            record
-          ) +
+          encodeURIComponent(record) +
           '/remove',
 
           data,
@@ -3951,8 +3614,7 @@ document.addEventListener(
       }
 
       if (
-        kind ===
-        'reset-password'
+        kind === 'reset-password'
       ) {
         passwordValid(data);
 
@@ -3960,9 +3622,7 @@ document.addEventListener(
           '/' +
           form.dataset.role +
           's/' +
-          encodeURIComponent(
-            record
-          ) +
+          encodeURIComponent(record) +
           '/password',
 
           data,
@@ -3976,11 +3636,8 @@ document.addEventListener(
         kind === 'notice'
       ) {
         data.recipient_ids =
-          new FormData(
-            form
-          ).getAll(
-            'recipient_ids'
-          );
+          new FormData(form)
+            .getAll('recipient_ids');
 
         if (!record) {
           data.request_id =
@@ -3990,9 +3647,7 @@ document.addEventListener(
         await submit(
           record
             ? '/notices/' +
-              encodeURIComponent(
-                record
-              ) +
+              encodeURIComponent(record) +
               '/save'
 
             : '/notices',
@@ -4001,7 +3656,6 @@ document.addEventListener(
 
           () => {
             edits.notice = null;
-
             clearId('notice');
           }
         );
@@ -4027,15 +3681,14 @@ document.addEventListener(
         if (
           data.class_id &&
 
-          !report.classes.some(
-            course =>
-              course.id ===
-                data.class_id &&
+          !report.classes.some(course =>
+            course.id ===
+              data.class_id &&
 
-              matchesTerm(
-                course.semester,
-                data
-              )
+            matchesTerm(
+              course.semester,
+              data
+            )
           )
         ) {
           data.class_id = '';
@@ -4067,18 +3720,15 @@ document.addEventListener(
             data.season || '',
 
           search:
-            data.student_search ||
-            ''
+            data.student_search || ''
         };
 
         const student =
-          state.users.find(
-            user =>
-              user.id ===
-                data.student_id &&
+          state.users.find(user =>
+            user.id ===
+              data.student_id &&
 
-              user.role ===
-                'student'
+            user.role === 'student'
           );
 
         if (
@@ -4104,8 +3754,7 @@ document.addEventListener(
       }
 
       if (
-        kind ===
-        'teacher-attendance'
+        kind === 'teacher-attendance'
       ) {
         activeFeedbackKey =
           feedbackKey(form);
@@ -4140,7 +3789,6 @@ document.addEventListener(
           );
         } finally {
           lock(false);
-
           activeFeedbackKey = '';
         }
 
@@ -4163,10 +3811,7 @@ document.addEventListener(
 
         try {
           const result =
-            await api(
-              '/profile',
-              data
-            );
+            await api('/profile', data);
 
           state.profile = {
             ...state.profile,
@@ -4183,8 +3828,7 @@ document.addEventListener(
           );
 
           if (
-            auth.currentUser
-              ?.reload
+            auth.currentUser?.reload
           ) {
             auth.currentUser
               .reload()
@@ -4192,7 +3836,6 @@ document.addEventListener(
           }
         } finally {
           lock(false);
-
           activeFeedbackKey = '';
         }
 
@@ -4240,7 +3883,6 @@ document.addEventListener(
           );
         } finally {
           lock(false);
-
           activeFeedbackKey = '';
         }
       }
@@ -4265,10 +3907,7 @@ document.addEventListener(
         '[data-action]'
       );
 
-    if (
-      !element ||
-      busy
-    ) {
+    if (!element || busy) {
       return;
     }
 
@@ -4285,8 +3924,7 @@ document.addEventListener(
         (
           state.subjects || []
         ).find(
-          item =>
-            item.id === id
+          item => item.id === id
         ) || null;
 
       render();
@@ -4306,8 +3944,7 @@ document.addEventListener(
       action === 'reset-subjects'
     ) {
       if (
-        action ===
-        'cancel-subject'
+        action === 'cancel-subject'
       ) {
         subjectEdit = null;
       } else {
@@ -4319,8 +3956,7 @@ document.addEventListener(
     }
 
     if (
-      action ===
-      'reset-report-scope'
+      action === 'reset-report-scope'
     ) {
       reportScope = {
         year: '',
@@ -4366,11 +4002,10 @@ document.addEventListener(
           '.slot'
         ).length < 21
       ) {
-        $('slots')
-          .insertAdjacentHTML(
-            'beforeend',
-            slot()
-          );
+        $('slots').insertAdjacentHTML(
+          'beforeend',
+          slot()
+        );
       }
 
       return;
@@ -4384,9 +4019,9 @@ document.addEventListener(
           '.slot'
         ).length > 1
       ) {
-        element
-          .closest('.slot')
-          .remove();
+        element.closest(
+          '.slot'
+        ).remove();
       } else {
         message(
           'Keep at least one routine slot.',
@@ -4408,8 +4043,7 @@ document.addEventListener(
     }
 
     if (
-      action ===
-      'reset-directory'
+      action === 'reset-directory'
     ) {
       directorySearch = '';
 
@@ -4423,8 +4057,7 @@ document.addEventListener(
     }
 
     if (
-      action ===
-      'reset-classes'
+      action === 'reset-classes'
     ) {
       classSearch = '';
 
@@ -4438,8 +4071,7 @@ document.addEventListener(
     }
 
     if (
-      action ===
-      'reset-report'
+      action === 'reset-report'
     ) {
       reportFilter = {
         year: '',
@@ -4475,6 +4107,7 @@ document.addEventListener(
 
               search: ''
             }
+
           : null
       );
 
@@ -4482,14 +4115,12 @@ document.addEventListener(
     }
 
     if (
-      action ===
-      'teacher-classes'
+      action === 'teacher-classes'
     ) {
       classSearch =
         nameOf(id);
 
-      location.hash =
-        '#classes';
+      location.hash = '#classes';
 
       render();
       return;
@@ -4541,19 +4172,15 @@ document.addEventListener(
       of ['teacher', 'student']
     ) {
       const user =
-        state.users.find(
-          item =>
-            item.id === id &&
-            item.role === role
+        state.users.find(item =>
+          item.id === id &&
+          item.role === role
         );
 
-      if (!user) {
-        continue;
-      }
+      if (!user) continue;
 
       if (
-        action ===
-        'edit-' + role
+        action === 'edit-' + role
       ) {
         edits[role] = user;
 
@@ -4585,8 +4212,7 @@ document.addEventListener(
           '/status',
 
           {
-            active:
-              !user.active
+            active: !user.active
           }
         );
 
@@ -4594,8 +4220,7 @@ document.addEventListener(
       }
 
       if (
-        action ===
-        'password-' + role
+        action === 'password-' + role
       ) {
         openModal(`
           <form
@@ -4655,8 +4280,7 @@ document.addEventListener(
     }
 
     if (
-      action ===
-      'status-class'
+      action === 'status-class'
     ) {
       const classroom =
         classOf(id);
@@ -4690,13 +4314,11 @@ document.addEventListener(
     }
 
     if (
-      action ===
-      'edit-notice'
+      action === 'edit-notice'
     ) {
       edits.notice =
         state.notices.find(
-          notice =>
-            notice.id === id
+          notice => notice.id === id
         );
 
       render();
@@ -4704,8 +4326,7 @@ document.addEventListener(
     }
 
     if (
-      action ===
-        'remove-notice' &&
+      action === 'remove-notice' &&
 
       confirm(
         'Remove this notice?'
@@ -4723,12 +4344,7 @@ document.addEventListener(
 );
 
 function updateReportChooser(form) {
-  if (
-    !form ||
-    busy
-  ) {
-    return;
-  }
+  if (!form || busy) return;
 
   const values =
     Object.fromEntries(
@@ -4755,26 +4371,25 @@ function updateReportChooser(form) {
     dropdown.value;
 
   const students =
-    state.users.filter(
-      user =>
-        user.role === 'student' &&
+    state.users.filter(user =>
+      user.role === 'student' &&
 
-        studentMatchesTerm(
-          user,
-          reportScope
-        ) &&
+      studentMatchesTerm(
+        user,
+        reportScope
+      ) &&
 
-        [
-          user.name,
-          user.student_no,
-          user.email
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(
-            reportScope.search
-              .toLowerCase()
-          )
+      [
+        user.name,
+        user.student_no,
+        user.email
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(
+          reportScope.search
+            .toLowerCase()
+        )
     );
 
   dropdown.innerHTML =
@@ -4782,21 +4397,15 @@ function updateReportChooser(form) {
 
     students.map(user => `
       <option value="${h(user.id)}">
-        ${h(
-          user.student_no ||
-          '—'
-        )}
-
+        ${h(user.student_no || '—')}
         —
-
         ${h(user.name)}
       </option>
     `).join('');
 
   dropdown.value =
     students.some(
-      user =>
-        user.id === selected
+      user => user.id === selected
     )
       ? selected
       : '';
@@ -4806,12 +4415,7 @@ window.addEventListener(
   'campus-academics-changed',
 
   async () => {
-    if (
-      !ready ||
-      busy
-    ) {
-      return;
-    }
+    if (!ready || busy) return;
 
     const expected =
       auth.currentUser?.uid;
@@ -4864,17 +4468,12 @@ document.addEventListener(
         '[data-kind="load-report"]'
       ) &&
 
-      [
-        'year',
-        'season'
-      ].includes(
+      ['year', 'season'].includes(
         event.target.name
       )
     ) {
       updateReportChooser(
-        event.target.closest(
-          'form'
-        )
+        event.target.closest('form')
       );
 
       return;
@@ -4883,10 +4482,7 @@ document.addEventListener(
     if (
       !busy &&
 
-      [
-        'term_name',
-        'term_year'
-      ].includes(
+      ['term_name', 'term_year'].includes(
         event.target.name
       )
     ) {
@@ -4940,12 +4536,10 @@ document.addEventListener(
 
     if (
       event.target.id ===
-      'student-search'
+        'student-search'
     ) {
       updateReportChooser(
-        event.target.closest(
-          'form'
-        )
+        event.target.closest('form')
       );
     }
   }
@@ -5057,11 +4651,8 @@ onAuthStateChanged(
 
     ready = false;
 
-    $('workspace').hidden =
-      true;
-
-    $('loading').hidden =
-      false;
+    $('workspace').hidden = true;
+    $('loading').hidden = false;
 
     if (
       uid !== user?.uid
@@ -5124,23 +4715,18 @@ onAuthStateChanged(
 
       ready = true;
 
-      $('loading').hidden =
-        true;
-
-      $('workspace').hidden =
-        false;
+      $('loading').hidden = true;
+      $('workspace').hidden = false;
 
       render();
     } catch (error) {
       if (
         current === version
       ) {
-        $('loading-text')
-          .textContent =
-            error.message;
+        $('loading-text').textContent =
+          error.message;
 
-        $('retry').hidden =
-          false;
+        $('retry').hidden = false;
       }
     }
   }
