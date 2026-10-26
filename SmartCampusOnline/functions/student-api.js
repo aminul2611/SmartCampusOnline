@@ -1,6 +1,7 @@
 const express = require("express");
 const { ApiError, text, id, key } = require("./validation");
 const { loadNotices } = require("./teacher-notices-api");
+const { enrolledOn } = require("./academic-core");
 
 const ZONE = "Asia/Shanghai";
 const STATUSES = ["Present", "Late", "Absent", "Excused"];
@@ -98,9 +99,7 @@ function summary(history) {
     total: counted.length,
     attended,
     counts,
-
     pending: history.filter(item => !item.counted).length,
-
     percentage: counted.length
       ? Math.round(attended * 1000 / counted.length) / 10
       : null
@@ -325,18 +324,11 @@ function createStudentApp({ auth, db, timestamp }) {
         const sessions = rows(lessonSnap)
           .filter(lesson => {
             if (lesson.cancelled === true) return false;
-
             if (own.has(lesson.id)) return true;
 
-            if (lesson.lesson_date < classroom.joined_on) {
-              return false;
-            }
-
-            if (enrolment.active !== false) return true;
-
-            return Boolean(
-              enrolment.left_on &&
-              lesson.lesson_date <= enrolment.left_on
+            return enrolledOn(
+              enrolment,
+              lesson.lesson_date
             );
           })
           .map(lesson => {

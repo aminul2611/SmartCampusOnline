@@ -276,10 +276,13 @@ function attendedBreakdown(counts) {
 
 const selected = () => state.classes.find(item => item.id === cid);
 
-function roster() {
+function roster(includeCancelled = false) {
   const ids = new Set(
     state.enrolments
-      .filter(item => item.class_id === cid && item.active !== false)
+      .filter(item =>
+        item.class_id === cid &&
+        (includeCancelled || item.active !== false)
+      )
       .map(item => item.student_id)
   );
 
@@ -375,12 +378,10 @@ function picker(prefix) {
 
       <label>
         <span class="sr-only">Select class</span>
-
         <select data-class aria-label="Select class">
           <option value="" ${cid ? "" : "selected"}>
             Select a class
           </option>
-
           ${state.classes.map(item => `
             <option
               value="${h(item.id)}"
@@ -438,15 +439,84 @@ function duration(record) {
   return Math.floor(minutes / 60) + "h " + minutes % 60 + "m";
 }
 
+function enrolmentFor(studentId) {
+  return state.enrolments.find(item =>
+    item.class_id === cid && item.student_id === studentId
+  );
+}
+
+function enrolledOn(enrolment, date) {
+  const periods = enrolment.periods?.length
+    ? enrolment.periods
+    : [{
+        from: enrolment.joined_on || "0000-01-01",
+        to: enrolment.active === false
+          ? enrolment.left_on || enrolment.joined_on
+          : null
+      }];
+
+  return periods.some(period =>
+    period.from <= date &&
+    (!period.to || date <= period.to)
+  );
+}
+
+function savedResult(saved, classroom) {
+  const keys = ["assessment", "mid", "final"];
+
+  const validNumber = value =>
+    ["number", "string"].includes(typeof value) &&
+    String(value).trim() !== "" &&
+    Number.isFinite(Number(value));
+
+  const maximum = keys.reduce(
+    (sum, key) => sum + Number(classroom.limits[key]),
+    0
+  );
+
+  if (
+    !Number.isFinite(maximum) ||
+    maximum <= 0 ||
+    !keys.every(key =>
+      validNumber(saved[key]) &&
+      validNumber(classroom.limits[key]) &&
+      Number(classroom.limits[key]) >= 0 &&
+      Number(saved[key]) >= 0 &&
+      Number(saved[key]) <= Number(classroom.limits[key])
+    )
+  ) {
+    return '<span class="status unmarked">Incomplete</span>';
+  }
+
+  const total = Number(
+    keys.reduce(
+      (sum, key) => sum + Number(saved[key]),
+      0
+    ).toPrecision(15)
+  );
+
+  const passed = total >= maximum * 0.4;
+
+  return `<span class="status ${passed ? "present" : "absent"}">${
+    h(total)
+  } / ${h(maximum)} · ${passed ? "Pass" : "Fail"}</span>`;
+}
+
 /* Student details */
 
 function studentsPage() {
+  const students = selected() ? roster(true) : [];
+
+  const cancelled = students.filter(
+    item => enrolmentFor(item.id)?.active === false
+  );
+
   return `
     <div>
       ${heading(
         "ts",
         "Student Details",
-        "View the students enrolled in your assigned classes."
+        "Manage enrolments in your assigned classes."
       )}
 
       ${picker("ts")}
@@ -458,8 +528,23 @@ function studentsPage() {
               <h2>Enrolled students</h2>
               <p>${h(selected().name)}</p>
             </div>
-            <span class="badge">${roster().length} students</span>
+
+            <div class="badge-row">
+              <span class="status present">
+                ${students.length - cancelled.length} enrolled
+              </span>
+              <span class="status absent">
+                ${cancelled.length} Cancelled
+              </span>
+            </div>
           </div>
+
+          <p class="info-note">
+            Cancellation applies only to this class. Cancelled students stay here,
+            leave the Attendance and Marks entry lists, and are excluded from
+            current enrolment counts. Previous records remain in historical reports.
+            You can restore an active student after checking their timetable.
+          </p>
 
           ${table(
             [
@@ -467,30 +552,69 @@ function studentsPage() {
               "Student ID",
               "Email",
               "Department / semester",
-              "Account"
+              "Account",
+              "Enrolment",
+              "Action"
             ],
-            roster().map(item => `
-              <tr data-search="${find([
-                item.name,
-                item.student_no,
-                item.email,
-                item.department,
-                item.semester
-              ])}">
-                <td><strong>${h(item.name)}</strong></td>
-                <td>${h(item.student_no || "—")}</td>
-                <td>${h(item.email || "—")}</td>
-                <td>
-                  ${h(item.department || "—")}
-                  <small>${h(item.semester)}</small>
-                </td>
-                <td>
-                  <span class="status ${item.active ? "present" : "absent"}">
-                    ${item.active ? "Active" : "Disabled"}
-                  </span>
-                </td>
-              </tr>
-            `)
+            students.map(item => {
+              const enrolment = enrolmentFor(item.id);
+              const removed = enrolment.active === false;
+
+              return `
+                <tr data-search="${find([
+                  item.name,
+                  item.student_no,
+                  item.email,
+                  item.department,
+                  item.semester,
+                  removed ? "Cancelled" : "Enrolled"
+                ])}">
+                  <td><strong>${h(item.name)}</strong></td>
+                  <td>${h(item.student_no || "—")}</td>
+                  <td>${h(item.email || "—")}</td>
+
+                  <td>
+                    ${h(item.department || "—")}
+                    <small>${h(item.semester)}</small>
+                  </td>
+
+                  <td>
+                    <span class="status ${item.active ? "present" : "unmarked"}">
+                      ${item.active ? "Active" : "Disabled"}
+                    </span>
+                  </td>
+
+                  <td>
+                    <span class="status ${removed ? "absent" : "present"}">
+                      ${removed ? "Cancelled" : "Enrolled"}
+                    </span>
+
+                    ${removed && enrolment.left_on ? `
+                      <small>Cancelled on ${h(enrolment.left_on)}</small>
+                    ` : ""}
+                  </td>
+
+                  <td>
+                    <form data-kind="enrolment" data-student="${h(item.id)}">
+                      <input
+                        type="hidden"
+                        name="active"
+                        value="${removed ? "true" : "false"}"
+                      >
+
+                      <button
+                        type="submit"
+                        class="secondary"
+                        aria-label="${removed ? "Restore" : "Cancel enrolment for"} ${h(item.name)}"
+                        ${removed && !item.active ? "disabled data-locked" : ""}
+                      >
+                        ${removed ? "Restore enrolment" : "Cancel enrolment"}
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              `;
+            })
           )}
         </section>
       ` : `
@@ -526,6 +650,8 @@ function marksPage() {
               <p>
                 Leave ungraded marks blank.
                 Each row is saved separately.
+                Saved totals show Pass at 40% or above; lower totals show Fail.
+                Ungraded marks stay Incomplete.
               </p>
             </div>
           </div>
@@ -573,14 +699,7 @@ function marksPage() {
                 JSON.stringify([cid, student.id])
               ) || saved;
 
-              const total = keys.every(key => saved[key] != null)
-                ? Math.round(
-                    keys.reduce(
-                      (sum, key) => sum + Number(saved[key]),
-                      0
-                    ) * 100
-                  ) / 100
-                : "Incomplete";
+              const result = savedResult(saved, classroom);
 
               return `
                 <tr data-search="${find([
@@ -610,7 +729,7 @@ function marksPage() {
                     </td>
                   `).join("")}
 
-                  <td><strong>${h(total)}</strong></td>
+                  <td>${result}</td>
 
                   <td>
                     <button
@@ -694,7 +813,6 @@ function noticesPage() {
           <form data-kind="notice">
             <label>
               Send to
-
               <select id="tn-audience" name="audience" required>
                 <option value="">Choose recipients</option>
                 <option value="admin">Admin</option>
@@ -706,10 +824,8 @@ function noticesPage() {
             <div id="tn-class-field" hidden>
               <label>
                 Class / section
-
                 <select name="class_id">
                   <option value="">Select your class</option>
-
                   ${state.classes.map(item => `
                     <option value="${h(item.id)}">
                       ${h(item.code + " — " + item.name)}
@@ -724,7 +840,13 @@ function noticesPage() {
 
               <div class="recipient-list">
                 ${state.students
-                  .filter(item => item.active)
+                  .filter(item =>
+                    item.active &&
+                    state.enrolments.some(enrolment =>
+                      enrolment.student_id === item.id &&
+                      enrolment.active !== false
+                    )
+                  )
                   .map(item => `
                     <label class="checkbox-row">
                       <input
@@ -732,7 +854,6 @@ function noticesPage() {
                         name="student_ids"
                         value="${h(item.id)}"
                       >
-
                       <span>
                         ${h(item.name)}
                         <small>${h(item.student_no)}</small>
@@ -759,7 +880,6 @@ function noticesPage() {
 
             <label>
               Message
-
               <textarea
                 name="body"
                 maxlength="5000"
@@ -781,7 +901,6 @@ function noticesPage() {
               <h2>Received notices</h2>
               <span class="badge">${state.received.length}</span>
             </div>
-
             ${noticeCards(state.received)}
           </section>
 
@@ -790,7 +909,6 @@ function noticesPage() {
               <h2>Sent notices</h2>
               <span class="badge">${state.sent.length}</span>
             </div>
-
             ${noticeCards(state.sent, true)}
           </section>
         </div>
@@ -819,7 +937,6 @@ function myAttendance() {
             <h2>Today's workday</h2>
             <p>${h(state.today)}</p>
           </div>
-
           <span class="status ${done ? "present" : "neutral"}">
             ${done ? "Completed" : record ? "Working" : "Not checked in"}
           </span>
@@ -1104,19 +1221,16 @@ function dashboard() {
               <h2>Campus updates</h2>
               <p>Latest notices</p>
             </div>
-
             <a class="text-link" href="#notices">View all →</a>
           </div>
 
           ${state.received.slice(0, 3).map(item => `
             <a class="notice-preview" href="#notices">
               <strong>${h(item.title)}</strong>
-
               <p>
                 ${h(String(item.body || "").slice(0, 125))}
                 ${String(item.body || "").length > 125 ? "…" : ""}
               </p>
-
               <small>${h(item.author_name || "Campus Office")}</small>
             </a>
           `).join("") || `
@@ -1200,10 +1314,7 @@ function attendanceReport(data, classId, now = new Date()) {
 
   const enrolled = new Map(
     data.enrolments
-      .filter(item =>
-        item.class_id === classId &&
-        item.active !== false
-      )
+      .filter(item => item.class_id === classId)
       .map(item => [item.student_id, item])
   );
 
@@ -1237,12 +1348,17 @@ function attendanceReport(data, classId, now = new Date()) {
 
   const activeStudents = [...enrolled.keys()]
     .map(uid => accounts.get(uid))
-    .filter(item => item?.active === true);
+    .filter(item =>
+      item?.active === true &&
+      enrolled.get(item.id).active !== false
+    );
 
   function studentsOn(date) {
-    return activeStudents.filter(item =>
-      (enrolled.get(item.id).joined_on || "0000-01-01") <= date
-    );
+    return [...enrolled.keys()]
+      .map(uid => accounts.get(uid))
+      .filter(item =>
+        item && enrolledOn(enrolled.get(item.id), date)
+      );
   }
 
   function forLesson(lesson) {
@@ -1282,7 +1398,10 @@ function attendanceReport(data, classId, now = new Date()) {
           }),
           id: uid,
           status,
-          can_mark: eligible.has(uid)
+          can_mark:
+            eligible.has(uid) &&
+            enrolled.get(uid)?.active !== false &&
+            account?.active === true
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -1417,7 +1536,6 @@ function sessionCards(classroom, lessons, report) {
 
           <span class="badge-row">
             <span class="badge">${h(report.stage(lesson))}</span>
-
             <span class="badge">
               ${
                 marked
@@ -1448,7 +1566,6 @@ function attendanceSessions(classroom, report) {
             <p>Create a session, then record its attendance.</p>
           </div>
         </div>
-
         ${sessionForm()}
       </section>
 
@@ -1458,7 +1575,6 @@ function attendanceSessions(classroom, report) {
             <h2>Weekly routine</h2>
             <p>${h(classroom.name)}</p>
           </div>
-
           <span class="badge">${h(classroom.semester)}</span>
         </div>
 
@@ -1564,15 +1680,8 @@ function attendanceReports(classroom, report) {
             <td><strong>${h(item.name)}</strong></td>
             <td>${h(item.student_no || "—")}</td>
             <td>${item.total}</td>
-
-            <td>
-              ${attendedBreakdown(item)}
-            </td>
-
-            <td>
-              ${attendanceBadge("Absent", item.Absent)}
-            </td>
-
+            <td>${attendedBreakdown(item)}</td>
+            <td>${attendanceBadge("Absent", item.Absent)}</td>
             <td>${attendanceBadge("Excused", item.Excused)}</td>
             <td>${attendanceBadge("Not marked", item["Not marked"])}</td>
           </tr>
@@ -1675,10 +1784,7 @@ function attendanceReports(classroom, report) {
                   <td>${h(lesson.lesson_date)}</td>
                   <td>${h(lesson.start_time)}–${h(lesson.end_time)}</td>
                   <td>${h(lesson.topic || classroom.name)}</td>
-
-                  <td>
-                    ${attendanceBadge(record.status)}
-                  </td>
+                  <td>${attendanceBadge(record.status)}</td>
 
                   <td>
                     <a
@@ -1720,6 +1826,25 @@ function attendanceTake(classroom, report) {
 
   const lesson = lessons.find(item => item.id === lid);
   const summary = lesson ? report.forLesson(lesson) : null;
+
+  if (summary) {
+    summary.students = summary.students.filter(student =>
+      state.enrolments.some(enrolment =>
+        enrolment.class_id === classroom.id &&
+        enrolment.student_id === student.id &&
+        enrolment.active !== false
+      )
+    );
+
+    summary.total = summary.students.length;
+
+    for (const status of Object.keys(summary.counts)) {
+      summary.counts[status] = summary.students.filter(
+        student => student.status === status
+      ).length;
+    }
+  }
+
   const canSave = !!lesson && selectedDate <= state.today;
 
   return `
@@ -1734,7 +1859,6 @@ function attendanceTake(classroom, report) {
       <div class="selection-grid">
         <label>
           Attendance date
-
           <input
             id="attendance-date"
             type="date"
@@ -1745,13 +1869,11 @@ function attendanceTake(classroom, report) {
 
         <label>
           Attendance session
-
           <select
             id="lesson-select"
             ${lessons.length ? "" : "disabled"}
           >
             <option value="">Select a session</option>
-
             ${lessons.map(item => `
               <option
                 value="${h(item.id)}"
@@ -1769,7 +1891,6 @@ function attendanceTake(classroom, report) {
         <div class="empty-state">
           No session scheduled for this date.
           <br>
-
           <a
             class="text-link"
             href="${h(url(
@@ -1806,14 +1927,12 @@ function attendanceTake(classroom, report) {
         <div class="section-heading">
           <div>
             <h2>Student attendance</h2>
-
             <p>
               ${h(selectedDate)}
               · ${h(lesson.start_time)}–${h(lesson.end_time)}
               · ${h(classroom.name)}
             </p>
           </div>
-
           ${attendanceBadges(summary.counts)}
         </div>
 
@@ -1857,17 +1976,13 @@ function attendanceTake(classroom, report) {
               ])}">
                 <td>
                   <strong>${h(student.name)}</strong>
-
                   ${!student.can_mark ? `
                     <small>Previous enrolment · read only</small>
                   ` : ""}
                 </td>
 
                 <td>${h(student.student_no || "—")}</td>
-
-                <td>
-                  ${attendanceBadge(student.status)}
-                </td>
+                <td>${attendanceBadge(student.status)}</td>
 
                 <td>
                   <select
@@ -1878,7 +1993,6 @@ function attendanceTake(classroom, report) {
                     ${editable ? "" : "disabled"}
                   >
                     <option value="">Select…</option>
-
                     ${[
                       "Present", "Late", "Absent", "Excused"
                     ].map(status => `
@@ -2027,6 +2141,7 @@ function render() {
 
   document.querySelectorAll(".tsb-nav a").forEach(link => {
     const active = link.hash === sectionHash;
+
     link.classList.toggle("active", active);
 
     if (active) {
@@ -2140,6 +2255,44 @@ $("content").addEventListener("submit", async event => {
   const data = Object.fromEntries(new FormData(form));
   const kind = form.dataset.kind;
 
+  if (kind === "enrolment") {
+    const studentId = form.dataset.student;
+    const active = data.active === "true";
+    const student = state.students.find(item => item.id === studentId);
+    const name = student?.name || "this student";
+
+    const message = active
+      ? `Restore ${name} to this class? Previous records will remain.`
+      : `Cancel ${name}'s enrolment in this class? Previous records will remain. Other classes and the account will stay active.`;
+
+    if (!window.confirm(message)) return;
+
+    await save(
+      "/classes/" + encodeURIComponent(cid) + "/enrolments/" +
+        encodeURIComponent(studentId) + "/status",
+      { active },
+      () => {
+        marksDrafts.delete(JSON.stringify([cid, studentId]));
+
+        for (const key of attendanceDrafts.keys()) {
+          const [lessonId, uid] = JSON.parse(key);
+
+          if (
+            uid === studentId &&
+            state.lessons.some(lesson =>
+              lesson.id === lessonId &&
+              lesson.class_id === cid
+            )
+          ) {
+            attendanceDrafts.delete(key);
+          }
+        }
+      }
+    );
+
+    return;
+  }
+
   if (kind === "attendance") {
     await save(
       "/classes/" + encodeURIComponent(cid) + "/attendance",
@@ -2149,6 +2302,7 @@ $("content").addEventListener("submit", async event => {
         lesson_id: lid
       }
     );
+
     return;
   }
 
@@ -2163,6 +2317,7 @@ $("content").addEventListener("submit", async event => {
       },
       () => marksDrafts.delete(key)
     );
+
     return;
   }
 
@@ -2183,6 +2338,7 @@ $("content").addEventListener("submit", async event => {
         );
       }
     );
+
     return;
   }
 

@@ -182,7 +182,7 @@
   </div>
 
   <script type="module">
-    import("../js/teacher-workspace.js?v=8").catch(() => {
+    import("../js/teacher-workspace.js?v=9").catch(() => {
       const status = document.getElementById("status");
 
       status.textContent =
@@ -192,6 +192,7 @@
       status.hidden = false;
 
       const retry = document.getElementById("retry");
+
       retry.hidden = false;
       retry.onclick = () => location.reload();
     });
