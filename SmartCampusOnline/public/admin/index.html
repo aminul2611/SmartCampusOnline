@@ -8,9 +8,14 @@
     content="width=device-width, initial-scale=1"
   >
 
-  <meta name="theme-color" content="#142840">
+  <meta
+    name="theme-color"
+    content="#142840"
+  >
 
-  <title>Administration · Smart Campus</title>
+  <title>
+    Administration · Smart Campus
+  </title>
 
   <link
     rel="stylesheet"
@@ -21,19 +26,36 @@
     rel="stylesheet"
     href="../static/admin/semester-history.css?v=1"
   >
+
+  <link
+    rel="stylesheet"
+    href="../static/admin/academic-setup.css?v=1"
+  >
 </head>
 
 <body class="admin-portal">
-  <section id="loading" class="loading" role="status">
-    <span class="brand-logo">SC</span>
+  <section
+    id="loading"
+    class="loading"
+    role="status"
+  >
+    <span class="brand-logo">
+      SC
+    </span>
 
-    <h1>Smart Campus</h1>
+    <h1>
+      Smart Campus
+    </h1>
 
     <p id="loading-text">
       Loading administration…
     </p>
 
-    <button id="retry" type="button" hidden>
+    <button
+      id="retry"
+      type="button"
+      hidden
+    >
       Try again
     </button>
 
@@ -45,14 +67,27 @@
     </a>
   </section>
 
-  <div id="workspace" hidden>
+  <div
+    id="workspace"
+    hidden
+  >
     <aside class="sidebar">
-      <a class="brand" href="#dashboard">
-        <span class="brand-logo">SC</span>
+      <a
+        class="brand"
+        href="#dashboard"
+      >
+        <span class="brand-logo">
+          SC
+        </span>
 
         <span>
-          <strong>Smart Campus</strong>
-          <small>Administration</small>
+          <strong>
+            Smart Campus
+          </strong>
+
+          <small>
+            Administration
+          </small>
         </span>
       </a>
 
@@ -60,51 +95,81 @@
         CAMPUS MANAGEMENT
       </span>
 
-      <nav class="tsb-nav" aria-label="Admin navigation">
+      <nav
+        class="tsb-nav"
+        aria-label="Admin navigation"
+      >
         <a href="#dashboard">
-          <span aria-hidden="true">▦</span>
+          <span aria-hidden="true">
+            ▦
+          </span>
+
           Dashboard
         </a>
 
         <a href="#teachers">
-          <span aria-hidden="true">◷</span>
+          <span aria-hidden="true">
+            ◷
+          </span>
+
           Teacher Management
         </a>
 
         <a href="#students">
-          <span aria-hidden="true">♙</span>
+          <span aria-hidden="true">
+            ♙
+          </span>
+
           Student Management
         </a>
 
         <a href="#classes">
-          <span aria-hidden="true">▤</span>
+          <span aria-hidden="true">
+            ▤
+          </span>
+
           Class Setup
         </a>
 
         <a href="#history">
-          <span aria-hidden="true">▥</span>
+          <span aria-hidden="true">
+            ▥
+          </span>
+
           Semester History
         </a>
 
         <a href="#reports">
-          <span aria-hidden="true">↗</span>
+          <span aria-hidden="true">
+            ↗
+          </span>
+
           Academic Reports
         </a>
 
         <a href="#notices">
-          <span aria-hidden="true">▧</span>
+          <span aria-hidden="true">
+            ▧
+          </span>
+
           Notices
         </a>
 
         <a href="#profile">
-          <span aria-hidden="true">◎</span>
+          <span aria-hidden="true">
+            ◎
+          </span>
+
           Admin Profile
         </a>
       </nav>
 
       <div class="sidebar-bottom">
         <div class="sidebar-account">
-          <span class="avatar" data-admin-initial>A</span>
+          <span
+            class="avatar"
+            data-admin-initial
+          >A</span>
 
           <div>
             <strong data-admin-name>
@@ -128,7 +193,10 @@
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-title">
-          <strong id="page-title">Dashboard</strong>
+          <strong id="page-title">
+            Dashboard
+          </strong>
+
           <small id="page-date"></small>
         </div>
 
@@ -191,25 +259,32 @@
 
   <script type="module">
     Promise.all([
-      import('../js/admin-workspace.js?v=6'),
-      import('../js/admin-semester-history.js?v=2')
+      import('../js/admin-workspace.js?v=7'),
+
+      import('../js/admin-semester-history.js?v=3')
     ]).catch(() => {
       const text =
         'The Admin Portal could not load completely. Please refresh and retry.';
 
-      document.getElementById('loading-text').textContent =
-        text;
+      document
+        .getElementById('loading-text')
+        .textContent = text;
 
-      const message = document.getElementById('message');
+      const message =
+        document.getElementById('message');
 
       message.textContent = text;
       message.className = 'flash danger';
       message.hidden = false;
 
-      const retry = document.getElementById('retry');
+      const retry =
+        document.getElementById('retry');
 
       retry.hidden = false;
-      retry.onclick = () => location.reload();
+
+      retry.onclick = () => {
+        location.reload();
+      };
     });
   </script>
 </body>

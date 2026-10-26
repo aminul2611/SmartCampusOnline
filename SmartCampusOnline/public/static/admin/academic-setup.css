@@ -1,0 +1,105 @@
+.subject-picker {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.subject-picker small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.subject-picker input {
+  width: 100%;
+}
+
+.academic-term {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.academic-term > summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.academic-term .metrics {
+  margin-top: 18px;
+}
+
+.academic-status {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #edf0f4;
+  color: #536173;
+}
+
+.academic-status.completed {
+  background: #e6efff;
+  color: #2453a0;
+}
+
+.academic-status.ongoing {
+  background: #e6f4ec;
+  color: #256448;
+}
+
+.academic-status.upcoming {
+  background: #fff2d8;
+  color: #805d13;
+}
+
+.semester-status-form {
+  margin: 20px 0 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.semester-status-form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.semester-status-form label {
+  flex: 1 1 200px;
+  max-width: 400px;
+}
+
+.semester-status-form .flash {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.filter-form > .muted {
+  flex-basis: 100%;
+}
+
+@media (max-width: 680px) {
+  .academic-term {
+    padding: 12px;
+  }
+
+  .semester-status-form label {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .semester-status-form button {
+    width: 100%;
+  }
+}
