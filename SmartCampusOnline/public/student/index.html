@@ -2,194 +2,155 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#30244f">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  >
-
-  <title>Student Workspace · Smart Campus</title>
+  <title>Student Portal · Smart Campus</title>
 
   <link
     rel="stylesheet"
-    href="../static/student/portal.css?v=1"
+    href="../static/student/portal.css?v=5"
   >
 </head>
 
-<body class="workspace role-student">
-
+<body>
   <aside class="campus-sidebar">
-
     <a class="campus-brand" href="#dashboard">
       <span class="campus-logo">SC</span>
 
       <span>
-        Smart Campus
+        <strong>Smart Campus</strong>
         <small>Student workspace</small>
       </span>
     </a>
 
-    <div class="sidebar-caption">
-      WORKSPACE
-    </div>
+    <span class="sidebar-caption">YOUR CAMPUS</span>
 
-    <nav
-      class="campus-nav"
-      aria-label="Main navigation"
-    >
+    <nav class="campus-nav" aria-label="Student navigation">
       <a href="#dashboard">
-        <span>▦</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/>
+        </svg>
         Dashboard
       </a>
 
       <a href="#classes">
-        <span>▤</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 4h7l2 2 2-2h7v16h-7l-2 2-2-2H3zM12 6v16"/>
+        </svg>
         My Classes
       </a>
 
-      <a href="#tasks">
-        <span>✓</span>
-        Tasks
-      </a>
-
       <a href="#attendance">
-        <span>◷</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="4" y="4" width="16" height="17" rx="2"/>
+          <path d="M8 2v4M16 2v4M4 10h16M8 15l3 3 5-5"/>
+        </svg>
         My Attendance
       </a>
 
       <a href="#results">
-        <span>↗</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 3v18h17M8 16v-5M13 16V7M18 16v-8"/>
+        </svg>
         My Results
       </a>
 
       <a href="#notices">
-        <span>▧</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 10v6h4l12 5V5L7 10zM7 16l2 6M22 9v8"/>
+        </svg>
         My Notices
       </a>
 
       <a href="#profile">
-        <span>◎</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 22v-2a8 8 0 0 1 16 0v2"/>
+        </svg>
         My Profile
       </a>
     </nav>
 
     <div class="sidebar-bottom">
-
       <div class="sidebar-person">
-        <span
-          class="person-avatar"
-          data-initial
-        >S</span>
+        <span class="person-avatar" data-initial>S</span>
 
         <div>
-          <strong data-student-name>
-            Student
-          </strong>
-
-          <small>
-            Student account
-          </small>
+          <strong data-student-name>Student</strong>
+          <small>Student account</small>
         </div>
       </div>
 
       <form id="student-logout">
-        <button
-          class="sidebar-logout"
-          type="submit"
-        >
+        <button class="sidebar-logout" type="submit">
           Log out →
         </button>
       </form>
-
     </div>
   </aside>
 
   <div class="campus-main">
-
     <header class="campus-topbar">
-
       <div>
-        <strong id="page-title">
-          Dashboard
-        </strong>
-
-        <span
-          id="today"
-          class="topbar-date"
-        ></span>
+        <strong id="page-title">Dashboard</strong>
+        <small id="today"></small>
       </div>
 
       <div class="topbar-account">
-
         <button
           id="student-refresh"
-          class="dashboard-button"
+          class="secondary"
           type="button"
         >
           Refresh
         </button>
 
-        <span class="account-role">
-          Student
-        </span>
-
-        <span
+        <a
           class="person-avatar"
+          href="#profile"
           data-initial
-        >S</span>
-
+          aria-label="Open my profile"
+        >S</a>
       </div>
     </header>
 
     <main class="campus-content">
-
-      <div class="campus-flash-list">
-        <p
-          id="student-message"
-          class="flash"
-          role="status"
-          aria-live="polite"
-        >
-          Checking Student account…
-        </p>
-      </div>
-
-      <button
-        id="student-retry"
-        class="dashboard-button"
-        type="button"
-        hidden
+      <p
+        id="student-message"
+        class="flash"
+        role="status"
+        aria-live="polite"
       >
+        Loading your student workspace…
+      </p>
+
+      <button id="student-retry" type="button" hidden>
         Try again
       </button>
 
-      <div
-        id="student-content"
-        hidden
-      ></div>
-
+      <div id="student-content" hidden></div>
     </main>
 
-    <footer class="campus-footer">
+    <footer>
       Smart Campus · Developed by Md. Aminul Islam
     </footer>
-
   </div>
 
   <script type="module">
-    import("../js/student-workspace.js?v=1")
-      .catch(error => {
-        document.getElementById(
-          "student-message"
-        ).textContent =
-          "Could not load Student workspace: " +
-          error.message;
+    import("../js/student-workspace.js?v=5").catch(() => {
+      const message = document.getElementById("student-message");
 
-        document.getElementById(
-          "student-retry"
-        ).hidden = false;
-      });
+      message.textContent =
+        "The Student Portal could not load. Please refresh and retry.";
+
+      message.className = "flash danger";
+      message.hidden = false;
+
+      const retry = document.getElementById("student-retry");
+      retry.hidden = false;
+      retry.onclick = () => location.reload();
+    });
   </script>
-
 </body>
 </html>
