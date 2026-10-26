@@ -24,12 +24,9 @@
 </head>
 
 <body class="admin-portal">
-  <section
-    id="loading"
-    class="loading"
-    role="status"
-  >
+  <section id="loading" class="loading" role="status">
     <span class="brand-logo">SC</span>
+
     <h1>Smart Campus</h1>
 
     <p id="loading-text">
@@ -63,10 +60,7 @@
         CAMPUS MANAGEMENT
       </span>
 
-      <nav
-        class="tsb-nav"
-        aria-label="Admin navigation"
-      >
+      <nav class="tsb-nav" aria-label="Admin navigation">
         <a href="#dashboard">
           <span aria-hidden="true">▦</span>
           Dashboard
@@ -87,6 +81,11 @@
           Class Setup
         </a>
 
+        <a href="#history">
+          <span aria-hidden="true">▥</span>
+          Semester History
+        </a>
+
         <a href="#reports">
           <span aria-hidden="true">↗</span>
           Academic Reports
@@ -105,10 +104,7 @@
 
       <div class="sidebar-bottom">
         <div class="sidebar-account">
-          <span
-            class="avatar"
-            data-admin-initial
-          >A</span>
+          <span class="avatar" data-admin-initial>A</span>
 
           <div>
             <strong data-admin-name>
@@ -132,10 +128,7 @@
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-title">
-          <strong id="page-title">
-            Dashboard
-          </strong>
-
+          <strong id="page-title">Dashboard</strong>
           <small id="page-date"></small>
         </div>
 
@@ -198,8 +191,8 @@
 
   <script type="module">
     Promise.all([
-      import('../js/admin-workspace.js?v=5'),
-      import('../js/admin-semester-history.js?v=1')
+      import('../js/admin-workspace.js?v=6'),
+      import('../js/admin-semester-history.js?v=2')
     ]).catch(() => {
       const text =
         'The Admin Portal could not load completely. Please refresh and retry.';

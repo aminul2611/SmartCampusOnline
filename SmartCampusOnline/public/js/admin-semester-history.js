@@ -25,12 +25,7 @@ let loading = false;
 let controller = null;
 let feedback = '';
 let pendingReportUid = '';
-
-let filters = {
-  year: '',
-  season: '',
-  search: ''
-};
+let filters = { year: '', season: '', search: '' };
 
 function today() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -41,14 +36,26 @@ function today() {
   }).formatToParts(new Date());
 
   return ['year', 'month', 'day']
-    .map(name =>
-      parts.find(part => part.type === name).value
-    )
+    .map(name => parts.find(part => part.type === name).value)
     .join('-');
 }
 
+function displayTerm(value) {
+  return termInfo(value)?.label || String(value || '');
+}
+
+function termSearch(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/\bsummar(?=\s|[-/]|\d|$)/gi, 'summer')
+    .replace(/\b(summer|spring)\s*[-/]?\s*(\d{4})\b/gi, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 function termInfo(value) {
-  const match = /^(summer|spring)\s*[-/]?\s*(\d{4})$/i.exec(
+  const match = /^(summer|summar|spring)\s*[-/]?\s*(\d{4})$/i.exec(
     String(value || '').normalize('NFKC').trim()
   );
 
@@ -60,9 +67,9 @@ function termInfo(value) {
     return null;
   }
 
-  const season = match[1].toLowerCase() === 'summer'
-    ? 'Summer'
-    : 'Spring';
+  const season = match[1].toLowerCase() === 'spring'
+    ? 'Spring'
+    : 'Summer';
 
   const year = Number(match[2]);
 
@@ -96,25 +103,18 @@ function termKey(value) {
 }
 
 function validDate(value) {
-  return (
-    typeof value === 'string' &&
+  return typeof value === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(Date.parse(value)) &&
-    new Date(value).toISOString().slice(0, 10) === value
-  );
+    new Date(value).toISOString().slice(0, 10) === value;
 }
 
 function classWindow(course) {
   const term = termInfo(course.semester);
-
   const from = course.start_date || term?.from || '';
   const to = course.end_date || term?.to || '';
 
-  return (
-    validDate(from) &&
-    validDate(to) &&
-    from <= to
-  )
+  return validDate(from) && validDate(to) && from <= to
     ? { from, to }
     : null;
 }
@@ -122,10 +122,7 @@ function classWindow(course) {
 function groupStage(classes, onDate) {
   const windows = classes.map(classWindow);
 
-  if (
-    !windows.length ||
-    windows.some(value => !value)
-  ) {
+  if (!windows.length || windows.some(value => !value)) {
     return {
       label: 'Dates not set',
       tone: 'unknown',
@@ -134,34 +131,18 @@ function groupStage(classes, onDate) {
     };
   }
 
-  const from = windows
-    .map(value => value.from)
-    .sort()[0];
-
-  const to = windows
-    .map(value => value.to)
-    .sort()
-    .at(-1);
+  const from = windows.map(value => value.from).sort()[0];
+  const to = windows.map(value => value.to).sort().at(-1);
 
   return {
     from,
     to,
-
     ...(
       to < onDate
-        ? {
-            label: 'Finished',
-            tone: 'finished'
-          }
+        ? { label: 'Finished', tone: 'finished' }
         : from > onDate
-          ? {
-              label: 'Upcoming',
-              tone: 'upcoming'
-            }
-          : {
-              label: 'Ongoing',
-              tone: 'ongoing'
-            }
+          ? { label: 'Upcoming', tone: 'upcoming' }
+          : { label: 'Ongoing', tone: 'ongoing' }
     )
   };
 }
@@ -179,12 +160,10 @@ function semesterGroups(classes, onDate = today()) {
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-
         label:
           termInfo(course.semester)?.label ||
           course.semester ||
           'Semester not assigned',
-
         classes: []
       });
     }
@@ -203,13 +182,7 @@ function semesterGroups(classes, onDate = today()) {
 
       return x && y
         ? y.year - x.year ||
-          (
-            x.season === y.season
-              ? 0
-              : x.season === 'Spring'
-                ? -1
-                : 1
-          )
+          (x.season === y.season ? 0 : x.season === 'Spring' ? -1 : 1)
         : x
           ? -1
           : y
@@ -223,11 +196,7 @@ function semesterGroups(classes, onDate = today()) {
 }
 
 function tag(text, tone = '') {
-  return `
-    <span class="history-tag ${tone}">
-      ${h(text)}
-    </span>
-  `;
+  return `<span class="history-tag ${tone}">${h(text)}</span>`;
 }
 
 function studentRows(course, accounts) {
@@ -253,17 +222,13 @@ function studentRows(course, accounts) {
         ? item.periods
         : [{
             from: item.joined_on || '',
-            to: item.active === false
-              ? item.left_on || ''
-              : null
+            to: item.active === false ? item.left_on || '' : null
           }];
 
       return `
         <tr>
           <td>
-            <strong>
-              ${h(student?.name || 'Account unavailable')}
-            </strong>
+            <strong>${h(student?.name || 'Account unavailable')}</strong>
             <small>${h(student?.student_no || '—')}</small>
           </td>
 
@@ -272,10 +237,7 @@ function studentRows(course, accounts) {
               item.active === false
                 ? 'Closed enrolment'
                 : 'Open enrolment',
-
-              item.active === false
-                ? 'closed'
-                : 'ongoing'
+              item.active === false ? 'closed' : 'ongoing'
             )}
 
             ${
@@ -287,16 +249,10 @@ function studentRows(course, accounts) {
 
           <td>
             ${periods.map(period =>
-              `${h(period.from || 'Date not set')} → ${
-                h(
-                  period.to ||
-                  (
-                    item.active === false
-                      ? 'Date not set'
-                      : 'Open'
-                  )
-                )
-              }`
+              `${h(period.from || 'Date not set')} → ${h(
+                period.to ||
+                (item.active === false ? 'Date not set' : 'Open')
+              )}`
             ).join('<br>')}
           </td>
 
@@ -319,8 +275,7 @@ function studentRows(course, accounts) {
           </td>
         </tr>
       `;
-    })
-    .join('') || `
+    }).join('') || `
       <tr>
         <td colspan="4" class="empty-state">
           No saved enrolments in this class.
@@ -352,14 +307,14 @@ function classCard(course, accounts) {
 
           <small>
             ${h([
-              course.semester,
+              displayTerm(course.semester),
 
               course.section
                 ? 'Section ' + course.section
                 : 'Section not assigned',
 
               course.academic_session
-                ? 'Session ' + course.academic_session
+                ? 'Session ' + displayTerm(course.academic_session)
                 : ''
             ].filter(Boolean).join(' · '))}
           </small>
@@ -369,23 +324,15 @@ function classCard(course, accounts) {
           ${tag(students.size + ' students')}
 
           ${tag(
-            course.active === false
-              ? 'Archived class'
-              : 'Active class',
-
-            course.active === false
-              ? 'closed'
-              : 'ongoing'
+            course.active === false ? 'Archived class' : 'Active class',
+            course.active === false ? 'closed' : 'ongoing'
           )}
         </span>
       </summary>
 
       <p class="history-copy">
         Assigned teacher:
-        <strong>
-          ${h(teacher?.name || 'Account unavailable')}
-        </strong>
-
+        <strong>${h(teacher?.name || 'Account unavailable')}</strong>
         · Class dates:
         ${
           window
@@ -410,9 +357,7 @@ function classCard(course, accounts) {
             </tr>
           </thead>
 
-          <tbody>
-            ${studentRows(course, accounts)}
-          </tbody>
+          <tbody>${studentRows(course, accounts)}</tbody>
         </table>
       </div>
 
@@ -425,81 +370,58 @@ function classCard(course, accounts) {
 }
 
 function render() {
-  const groups = data
-    ? semesterGroups(data.classes)
-    : [];
+  const groups = data ? semesterGroups(data.classes) : [];
 
   const accounts = new Map(
     (data?.users || []).map(user => [user.id, user])
   );
 
-  const query = filters.search
-    .normalize('NFKC')
-    .trim()
-    .toLowerCase();
+  const query = termSearch(filters.search);
 
   const visible = groups
     .map(group => ({
       ...group,
-
       classes: group.classes.filter(course => {
         const term = termInfo(course.semester);
 
         return (
-          !filters.year ||
-          term?.year === Number(filters.year)
+          !filters.year || term?.year === Number(filters.year)
         ) &&
         (
-          !filters.season ||
-          term?.season === filters.season
+          !filters.season || term?.season === filters.season
         ) &&
-        [
+        termSearch([
           course.code,
           course.name,
           course.section,
           course.semester,
           accounts.get(course.teacher_id)?.name
-        ]
-          .join(' ')
-          .normalize('NFKC')
-          .toLowerCase()
-          .includes(query);
+        ].join(' ')).includes(query);
       })
     }))
     .filter(group => group.classes.length);
 
   const totals = [
     ['Saved semesters', groups.length],
-
     [
       'Finished semesters',
-      groups.filter(group =>
-        group.stage.tone === 'finished'
-      ).length
+      groups.filter(group => group.stage.tone === 'finished').length
     ],
-
     [
       'Ongoing semesters',
-      groups.filter(group =>
-        group.stage.tone === 'ongoing'
-      ).length
+      groups.filter(group => group.stage.tone === 'ongoing').length
     ],
-
     [
       'Upcoming semesters',
-      groups.filter(group =>
-        group.stage.tone === 'upcoming'
-      ).length
+      groups.filter(group => group.stage.tone === 'upcoming').length
     ]
   ];
 
-  const unknown = groups.filter(group =>
-    group.stage.tone === 'unknown'
+  const unknown = groups.filter(
+    group => group.stage.tone === 'unknown'
   ).length;
 
-  if (unknown) {
-    totals.push(['Dates not set', unknown]);
-  }
+  if (unknown) totals.push(['Dates not set', unknown]);
 
   root.innerHTML = `
     <section class="panel">
@@ -507,7 +429,6 @@ function render() {
         <div>
           <span class="eyebrow">CAMPUS RECORDS</span>
           <h2>Semester & class history</h2>
-
           <p>
             All saved campus classes, including previous
             and archived classes.
@@ -526,11 +447,7 @@ function render() {
 
       ${
         feedback
-          ? `
-            <p class="flash danger" role="alert">
-              ${h(feedback)}
-            </p>
-          `
+          ? `<p class="flash danger" role="alert">${h(feedback)}</p>`
           : ''
       }
 
@@ -575,7 +492,6 @@ function render() {
         >
           <label>
             Year (blank = all)
-
             <input
               type="number"
               name="year"
@@ -588,7 +504,6 @@ function render() {
 
           <label>
             Semester (blank = all)
-
             <select name="season">
               <option value="">All semesters</option>
 
@@ -596,16 +511,13 @@ function render() {
                 <option
                   value="${season}"
                   ${filters.season === season ? 'selected' : ''}
-                >
-                  ${season}
-                </option>
+                >${season}</option>
               `).join('')}
             </select>
           </label>
 
           <label>
             Search subject, section or teacher
-
             <input
               type="search"
               name="search"
@@ -671,26 +583,17 @@ function render() {
             <summary>
               <span>
                 <strong>${h(group.label)}</strong>
-
                 <small>
                   ${
                     group.stage.from
-                      ? h(
-                          group.stage.from +
-                          ' – ' +
-                          group.stage.to
-                        )
+                      ? h(group.stage.from + ' – ' + group.stage.to)
                       : 'Set class dates to classify this term'
                   }
                 </small>
               </span>
 
               <span class="history-tags">
-                ${tag(
-                  group.stage.label,
-                  group.stage.tone
-                )}
-
+                ${tag(group.stage.label, group.stage.tone)}
                 ${tag(group.classes.length + ' classes')}
                 ${tag(students.size + ' students')}
               </span>
@@ -726,7 +629,6 @@ async function get(path, token, signal) {
     headers: {
       Authorization: 'Bearer ' + token
     },
-
     signal,
     cache: 'no-store'
   });
@@ -735,30 +637,20 @@ async function get(path, token, signal) {
     !(response.headers.get('content-type') || '')
       .includes('application/json')
   ) {
-    throw Error(
-      'Semester history is unavailable. Please retry.'
-    );
+    throw Error('Semester history is unavailable. Please retry.');
   }
 
   const result = await response.json();
 
   if (!response.ok || !result.ok) {
-    throw Error(
-      result.message || 'History request failed.'
-    );
+    throw Error(result.message || 'History request failed.');
   }
 
   return result;
 }
 
 async function load() {
-  if (
-    loading ||
-    !auth.currentUser ||
-    !userId
-  ) {
-    return;
-  }
+  if (loading || !auth.currentUser || !userId) return;
 
   const expectedUid = userId;
   const ticket = ++generation;
@@ -767,15 +659,10 @@ async function load() {
   controller = new AbortController();
 
   const activeController = controller;
-
-  const timer = setTimeout(
-    () => activeController.abort(),
-    70000
-  );
+  const timer = setTimeout(() => activeController.abort(), 70000);
 
   loading = true;
   feedback = '';
-
   render();
 
   const current = () =>
@@ -786,17 +673,12 @@ async function load() {
   try {
     const token = await Promise.race([
       auth.currentUser.getIdToken(),
-
       new Promise((resolve, reject) =>
         activeController.signal.addEventListener(
           'abort',
-
           () => reject(
-            Error(
-              'History request timed out. Please retry.'
-            )
+            Error('History request timed out. Please retry.')
           ),
-
           { once: true }
         )
       )
@@ -833,16 +715,14 @@ async function load() {
 }
 
 function visit() {
-  const reports =
-    location.hash.slice(1).split('?')[0] === 'reports';
+  const history =
+    location.hash.slice(1).split('?')[0] === 'history';
 
-  root.hidden = !reports || !userId;
+  root.hidden = !history || !userId;
 
-  if (!reports) {
-    pendingReportUid = '';
-  }
+  if (!history) pendingReportUid = '';
 
-  if (reports && userId) {
+  if (history && userId) {
     if (data || loading) {
       render();
     } else {
@@ -851,15 +731,10 @@ function visit() {
   }
 }
 
-/* History filters */
-
 root.addEventListener('submit', event => {
-  if (!event.target.matches('[data-history-filter]')) {
-    return;
-  }
+  if (!event.target.matches('[data-history-filter]')) return;
 
   event.preventDefault();
-
   if (loading) return;
 
   const values = Object.fromEntries(
@@ -876,9 +751,7 @@ root.addEventListener('submit', event => {
       Number(year) > 9999
     )
   ) {
-    const error = root.querySelector(
-      '[data-history-error]'
-    );
+    const error = root.querySelector('[data-history-error]');
 
     error.textContent =
       'Enter a four-digit year between 1900 and 9999, or leave Year blank.';
@@ -889,18 +762,14 @@ root.addEventListener('submit', event => {
 
   filters = {
     year,
-
     season: ['Summer', 'Spring'].includes(values.season)
       ? values.season
       : '',
-
     search: String(values.search || '')
   };
 
   render();
 });
-
-/* Buttons */
 
 root.addEventListener('click', event => {
   if (event.target.closest('[data-history-refresh]')) {
@@ -909,26 +778,17 @@ root.addEventListener('click', event => {
   }
 
   if (event.target.closest('[data-history-reset]')) {
-    filters = {
-      year: '',
-      season: '',
-      search: ''
-    };
-
+    filters = { year: '', season: '', search: '' };
     render();
     return;
   }
 
-  const report = event.target.closest(
-    '[data-action="report"]'
-  );
+  const report = event.target.closest('[data-action="report"]');
 
   if (report) {
     pendingReportUid = report.dataset.id;
   }
 });
-
-/* Move to the student report once it has loaded */
 
 new MutationObserver(() => {
   const selectedStudent = content.querySelector(
@@ -940,7 +800,6 @@ new MutationObserver(() => {
     selectedStudent?.value === pendingReportUid
   ) {
     pendingReportUid = '';
-
     content.tabIndex = -1;
 
     content.scrollIntoView?.({
@@ -948,42 +807,29 @@ new MutationObserver(() => {
       behavior: 'smooth'
     });
 
-    content.focus?.({
-      preventScroll: true
-    });
+    content.focus?.({ preventScroll: true });
   }
 }).observe(content, {
   childList: true
 });
 
-/* Refresh, navigation and authentication */
-
-document.getElementById('refresh')
-  .addEventListener('click', () => {
-    if (!root.hidden) load();
-  });
+document.getElementById('refresh').addEventListener('click', () => {
+  if (!root.hidden) load();
+});
 
 window.addEventListener('hashchange', visit);
 
 onAuthStateChanged(auth, user => {
   ++generation;
-
   controller?.abort();
 
   loading = false;
   data = null;
   feedback = '';
-
-  filters = {
-    year: '',
-    season: '',
-    search: ''
-  };
-
+  filters = { year: '', season: '', search: '' };
   pendingReportUid = '';
   userId = user?.uid || '';
 
   root.innerHTML = '';
-
   visit();
 });

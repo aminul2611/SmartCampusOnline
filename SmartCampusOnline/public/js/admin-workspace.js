@@ -10,14 +10,16 @@ import {
 
 const $ = id => document.getElementById(id);
 
-const h = value => String(value ?? '')
-  .replace(/[&<>"']/g, character => ({
+const h = value => String(value ?? '').replace(
+  /[&<>"']/g,
+  c => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#39;'
-  }[character]));
+  }[c])
+);
 
 const labels = {
   dashboard: 'Dashboard',
@@ -25,18 +27,14 @@ const labels = {
   students: 'Student Management',
   classes: 'Class Setup',
   reports: 'Student Academic Reports',
+  history: 'Semester & Class History',
   notices: 'Notices',
   profile: 'Admin Profile'
 };
 
 const days = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday'
+  'Sunday', 'Monday', 'Tuesday', 'Wednesday',
+  'Thursday', 'Friday', 'Saturday'
 ];
 
 let state = {
@@ -72,16 +70,8 @@ let edits = {
 
 let directorySearch = '';
 let classSearch = '';
-
-let directoryFilter = {
-  year: '',
-  season: ''
-};
-
-let classFilter = {
-  year: '',
-  season: ''
-};
+let directoryFilter = { year: '', season: '' };
+let classFilter = { year: '', season: '' };
 
 let reportFilter = {
   year: '',
@@ -105,13 +95,12 @@ function today() {
     .join('-');
 }
 
-/* Form feedback */
+/* Feedback */
 
 function feedbackKey(form) {
   if (!form?.dataset?.kind) return '';
 
   const kind = form.dataset.kind;
-
   const detail = kind === 'enrolment' || kind === 'close-enrolment'
     ? selectedClass
     : form.dataset.role || '';
@@ -134,7 +123,6 @@ function successFeedbackKey(form) {
 function installFeedback() {
   document.querySelectorAll('form[data-kind]').forEach(form => {
     const key = feedbackKey(form);
-
     let node = form.querySelector('[data-form-feedback]');
 
     if (!node) {
@@ -149,13 +137,11 @@ function installFeedback() {
     const value = formFeedback.get(key);
 
     node.textContent = value?.text || '';
-
-    node.className = 'flash form-feedback ' +
-      (value?.error ? 'danger' : 'success');
+    node.className =
+      'flash form-feedback ' + (value?.error ? 'danger' : 'success');
 
     node.setAttribute('role', value?.error ? 'alert' : 'status');
     node.setAttribute('aria-live', value?.error ? 'assertive' : 'polite');
-
     node.hidden = !value?.text;
   });
 }
@@ -180,13 +166,11 @@ function message(text, error = false, target = null) {
     const node = [
       ...document.querySelectorAll('[data-form-feedback]')
     ].find(item =>
-      item.dataset.feedbackKey === key &&
-      !item.hidden
+      item.dataset.feedbackKey === key && !item.hidden
     );
 
     if (node) {
       const details = node.closest('details');
-
       if (details) details.open = true;
 
       node.scrollIntoView?.({
@@ -205,7 +189,6 @@ function message(text, error = false, target = null) {
 
 function lock(value) {
   busy = value;
-
   $('working').hidden = !value || !!activeFeedbackKey;
 
   document.querySelectorAll('button')
@@ -218,46 +201,31 @@ function lock(value) {
 
 async function api(path, body) {
   const user = auth.currentUser;
-
-  if (!user) {
-    throw Error('Please sign in again.');
-  }
+  if (!user) throw Error('Please sign in again.');
 
   let tokenTimer;
 
   const token = await Promise.race([
     user.getIdToken(),
-
     new Promise((resolve, reject) => {
       tokenTimer = setTimeout(
-        () => reject(
-          Error('Login check timed out. Please retry.')
-        ),
+        () => reject(Error('Login check timed out. Please retry.')),
         25000
       );
     })
   ]).finally(() => clearTimeout(tokenTimer));
 
   const controller = new AbortController();
-
-  const timer = setTimeout(
-    () => controller.abort(),
-    70000
-  );
+  const timer = setTimeout(() => controller.abort(), 70000);
 
   try {
     const response = await fetch('/api' + path, {
       method: body === undefined ? 'GET' : 'POST',
-
       headers: {
         Authorization: 'Bearer ' + token,
         'Content-Type': 'application/json'
       },
-
-      ...(body === undefined
-        ? {}
-        : { body: JSON.stringify(body) }),
-
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: controller.signal
     });
 
@@ -265,9 +233,7 @@ async function api(path, body) {
       !(response.headers.get('content-type') || '')
         .includes('application/json')
     ) {
-      throw Error(
-        'Admin information is unavailable. Please retry.'
-      );
+      throw Error('Admin information is unavailable. Please retry.');
     }
 
     const data = await response.json();
@@ -291,22 +257,17 @@ async function api(path, body) {
 }
 
 function identity() {
-  document.querySelectorAll('[data-admin-name]')
-    .forEach(element => {
-      element.textContent =
-        state.profile?.name || 'Administrator';
-    });
+  document.querySelectorAll('[data-admin-name]').forEach(element => {
+    element.textContent = state.profile?.name || 'Administrator';
+  });
 
-  document.querySelectorAll('[data-admin-initial]')
-    .forEach(element => {
-      element.textContent =
-        (state.profile?.name || 'A')
-          .slice(0, 1)
-          .toUpperCase();
-    });
+  document.querySelectorAll('[data-admin-initial]').forEach(element => {
+    element.textContent = (state.profile?.name || 'A')
+      .slice(0, 1)
+      .toUpperCase();
+  });
 
-  $('admin-email').textContent =
-    state.profile?.email || '';
+  $('admin-email').textContent = state.profile?.email || '';
 }
 
 async function refresh() {
@@ -319,19 +280,14 @@ async function refresh() {
   state.profile = account.profile;
   identity();
 
-  const [
-    directory,
-    classes,
-    notices,
-    overview,
-    conflicts
-  ] = await Promise.all([
-    api('/directory'),
-    api('/classes'),
-    api('/notices'),
-    api('/overview?date=' + today()),
-    api('/schedule-conflicts')
-  ]);
+  const [directory, classes, notices, overview, conflicts] =
+    await Promise.all([
+      api('/directory'),
+      api('/classes'),
+      api('/notices'),
+      api('/overview?date=' + today()),
+      api('/schedule-conflicts')
+    ]);
 
   if (account.profile.id !== auth.currentUser?.uid) {
     throw Error('Account changed. Please reload.');
@@ -355,12 +311,7 @@ async function refresh() {
   refreshNeeded = false;
 }
 
-async function mutate(
-  path,
-  data,
-  after = () => {},
-  form = null
-) {
+async function mutate(path, data, after = () => {}, form = null) {
   if (busy) return;
 
   if (refreshNeeded) {
@@ -386,7 +337,6 @@ async function mutate(
     refreshNeeded = true;
 
     after(result);
-
     await refresh();
     render();
 
@@ -412,14 +362,12 @@ async function mutate(
 }
 
 function requestId(type) {
-  const storageKey =
-    'smart-campus.admin.' + uid + '.' + type;
-
-  let value = sessionStorage.getItem(storageKey);
+  const key = 'smart-campus.admin.' + uid + '.' + type;
+  let value = sessionStorage.getItem(key);
 
   if (!/^[a-f0-9]{32}$/.test(value || '')) {
     value = crypto.randomUUID().replaceAll('-', '');
-    sessionStorage.setItem(storageKey, value);
+    sessionStorage.setItem(key, value);
   }
 
   return value;
@@ -463,13 +411,7 @@ function button(text, action, id = '', danger = false) {
   `;
 }
 
-function field(
-  label,
-  name,
-  value = '',
-  type = 'text',
-  extra = ''
-) {
+function field(label, name, value = '', type = 'text', extra = '') {
   return `
     <label>
       ${h(label)}
@@ -483,13 +425,7 @@ function field(
   `;
 }
 
-function select(
-  label,
-  name,
-  items,
-  value = '',
-  required = false
-) {
+function select(label, name, items, value = '', required = false) {
   return `
     <label>
       ${h(label)}
@@ -564,22 +500,35 @@ function metrics(items) {
   `;
 }
 
-/* Summer / Spring and editable year */
+/* Semester names and legacy Summar spelling */
+
+function displayTerm(value) {
+  return termInfo(value)?.label || String(value || '');
+}
+
+function termSearch(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/\bsummar(?=\s|[-/]|\d|$)/gi, 'summer')
+    .replace(/\b(summer|spring)\s*[-/]?\s*(\d{4})\b/gi, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
 
 function termInfo(value) {
-  const match = /^(summer|spring)\s*[-/]?\s*(\d{4})$/i.exec(
+  const match = /^(summer|summar|spring)\s*[-/]?\s*(\d{4})$/i.exec(
     String(value || '').normalize('NFKC').trim()
   );
 
   if (!match) return null;
 
   const year = Number(match[2]);
-
   if (year < 1900 || year > 9999) return null;
 
-  const season = match[1].toLowerCase() === 'summer'
-    ? 'Summer'
-    : 'Spring';
+  const season = match[1].toLowerCase() === 'spring'
+    ? 'Spring'
+    : 'Summer';
 
   return {
     season,
@@ -636,7 +585,7 @@ function termFields(value = '') {
       )}
 
       <small class="term-preview" data-term-preview>
-        ${h(existing || info.label)}
+        ${h(legacy ? existing : info.label)}
       </small>
     </div>
   `;
@@ -704,9 +653,7 @@ function checkTermFilter(data) {
     data.season &&
     !['Summer', 'Spring'].includes(data.season)
   ) {
-    throw Error(
-      'Choose Summer, Spring, or all semesters.'
-    );
+    throw Error('Choose Summer, Spring, or all semesters.');
   }
 }
 
@@ -723,7 +670,6 @@ function matchesTerm(value, filter) {
 function studentMatchesTerm(user, filter) {
   return [
     user.semester,
-
     ...state.enrolments
       .filter(item => item.student_id === user.id)
       .map(item =>
@@ -754,10 +700,8 @@ function earlierTerm(term, current) {
 
 function syncTermFields(group) {
   const form = group.closest('form');
-
   const season = group.querySelector('[name="term_name"]');
   const year = group.querySelector('[name="term_year"]');
-
   const legacy = season.value === '__legacy';
 
   year.disabled = legacy;
@@ -782,7 +726,7 @@ function syncTermFields(group) {
   group.querySelector('[data-term-preview]').textContent = value;
 
   if (
-    value !== group.dataset.value &&
+    semesterKey(value) !== semesterKey(group.dataset.value) &&
     form.dataset.kind === 'class'
   ) {
     const info = termInfo(value);
@@ -799,6 +743,11 @@ function syncTermFields(group) {
         (old && session.value === String(old.year))
       ) {
         session.value = String(info.year);
+      } else if (
+        old &&
+        semesterKey(session.value) === semesterKey(old.label)
+      ) {
+        session.value = info.label;
       }
     }
   }
@@ -821,7 +770,6 @@ function dateTime(value) {
   if (value == null) return '—';
 
   const seconds = value?.seconds ?? value?._seconds;
-
   const parsed = new Date(
     seconds != null ? seconds * 1000 : value
   );
@@ -858,7 +806,6 @@ function dashboard() {
   ) +
   panel(
     'Attendance · ' + overview.date,
-
     metrics([
       ['Teacher check-ins', attendance.teacher_checkins],
       ['Sessions', attendance.sessions],
@@ -874,7 +821,6 @@ function dashboard() {
   ) +
   panel(
     'Schedule checks',
-
     state.conflicts.length
       ? `
         <p class="warning-note">
@@ -896,25 +842,21 @@ function dashboard() {
   );
 }
 
-/* Student / Teacher accounts */
+/* Accounts */
 
 function accounts(role) {
   const edit = edits[role];
   const isStudent = role === 'student';
-
   const users = state.users.filter(user => user.role === role);
 
   const visible = users.filter(user =>
-    [
+    termSearch([
       user.name,
       user.email,
       user[role + '_no'],
       user.semester,
       user.department
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(directorySearch.toLowerCase()) &&
+    ].join(' ')).includes(termSearch(directorySearch)) &&
     (!isStudent || studentMatchesTerm(user, directoryFilter))
   );
 
@@ -939,53 +881,35 @@ function accounts(role) {
           )}
 
           ${field(
-            'Full name',
-            'name',
-            edit?.name,
-            'text',
-            'required maxlength="100"'
+            'Full name', 'name', edit?.name,
+            'text', 'required maxlength="100"'
           )}
 
           ${field(
-            'Email',
-            'email',
-            edit?.email,
-            'email',
-            'required maxlength="254"'
+            'Email', 'email', edit?.email,
+            'email', 'required maxlength="254"'
           )}
 
           ${field(
-            'Department',
-            'department',
-            edit?.department,
-            'text',
-            'maxlength="150"'
+            'Department', 'department', edit?.department,
+            'text', 'maxlength="150"'
           )}
 
           ${field(
-            'Phone',
-            'phone',
-            edit?.phone,
-            'tel',
-            'maxlength="150"'
+            'Phone', 'phone', edit?.phone,
+            'tel', 'maxlength="150"'
           )}
 
           ${
             isStudent
               ? field(
-                  'Program',
-                  'program',
-                  edit?.program,
-                  'text',
-                  'maxlength="150"'
+                  'Program', 'program', edit?.program,
+                  'text', 'maxlength="150"'
                 ) +
                 termFields(edit?.semester)
               : field(
-                  'Designation',
-                  'designation',
-                  edit?.designation,
-                  'text',
-                  'maxlength="150"'
+                  'Designation', 'designation', edit?.designation,
+                  'text', 'maxlength="150"'
                 )
           }
 
@@ -1038,7 +962,6 @@ function accounts(role) {
   ` +
   panel(
     'All ' + role + 's',
-
     `
       <form class="filter-form" data-kind="directory-search">
         ${field(
@@ -1046,9 +969,7 @@ function accounts(role) {
           'search',
           directorySearch
         )}
-
         ${isStudent ? termFilterFields(directoryFilter) : ''}
-
         <button type="submit">Search</button>
         ${isStudent ? button('Reset', 'reset-directory') : ''}
       </form>
@@ -1062,21 +983,22 @@ function accounts(role) {
         'Status',
         'Actions'
       ],
-
       visible.map(user => `
         <tr>
           <td>${h(user[role + '_no'] || '—')}</td>
           <td><strong>${h(user.name)}</strong></td>
           <td>${h(user.email)}</td>
-          <td>${h(isStudent ? user.semester : user.department)}</td>
+          <td>${h(
+            isStudent
+              ? displayTerm(user.semester)
+              : user.department
+          )}</td>
 
           <td>
             ${badge(
               user.provisioning === 'pending'
                 ? 'Provisioning'
-                : user.active
-                  ? 'Active'
-                  : 'Disabled',
+                : user.active ? 'Active' : 'Disabled',
               user.active ? 'present' : 'neutral'
             )}
           </td>
@@ -1106,30 +1028,24 @@ function accounts(role) {
         </tr>
       `)
     ),
-
     users.length + ' accounts'
   ) +
   (isStudent ? '' : teacherAttendance());
 }
 
-/* Teacher work attendance */
-
 function teacherAttendance() {
   const month = work?.month || today().slice(0, 7);
 
   const records = (work?.records || []).filter(record =>
-    !work?.teacher ||
-    record.teacher_id === work.teacher
+    !work?.teacher || record.teacher_id === work.teacher
   );
 
   const rows = records.map(record => {
     const checkIn =
-      record.check_in?.seconds ??
-      record.check_in?._seconds;
+      record.check_in?.seconds ?? record.check_in?._seconds;
 
     const checkOut =
-      record.check_out?.seconds ??
-      record.check_out?._seconds;
+      record.check_out?.seconds ?? record.check_out?._seconds;
 
     const minutes =
       checkIn != null && checkOut != null
@@ -1142,23 +1058,17 @@ function teacherAttendance() {
         <td>${h(nameOf(record.teacher_id))}</td>
         <td>${h(dateTime(record.check_in))}</td>
         <td>${h(dateTime(record.check_out))}</td>
-        <td>
-          ${
-            minutes == null
-              ? '—'
-              : Math.floor(minutes / 60) +
-                'h ' +
-                minutes % 60 +
-                'm'
-          }
-        </td>
+        <td>${
+          minutes == null
+            ? '—'
+            : Math.floor(minutes / 60) + 'h ' + minutes % 60 + 'm'
+        }</td>
       </tr>
     `;
   });
 
   return panel(
     'Monthly teacher attendance',
-
     `
       <form data-kind="teacher-attendance" class="filter-form">
         ${field('Month', 'month', month, 'month', 'required')}
@@ -1190,7 +1100,7 @@ function teacherAttendance() {
   );
 }
 
-/* Classes and enrolments */
+/* Classes */
 
 function slot(value = {
   day: 0,
@@ -1210,15 +1120,7 @@ function slot(value = {
 
       ${field('Start', 'start', value.start, 'time', 'required')}
       ${field('End', 'end', value.end, 'time', 'required')}
-
-      ${field(
-        'Room',
-        'room',
-        value.room,
-        'text',
-        'maxlength="80"'
-      )}
-
+      ${field('Room', 'room', value.room, 'text', 'maxlength="80"')}
       ${button('Remove', 'remove-slot')}
     </div>
   `;
@@ -1227,15 +1129,7 @@ function slot(value = {
 function conflictsTable() {
   return state.conflicts.length
     ? table(
-        [
-          'Person',
-          'Date',
-          'First class',
-          'Time',
-          'Second class',
-          'Time'
-        ],
-
+        ['Person', 'Date', 'First class', 'Time', 'Second class', 'Time'],
         state.conflicts.map(conflict => `
           <tr>
             <td>
@@ -1250,11 +1144,7 @@ function conflictsTable() {
           </tr>
         `)
       )
-    : `
-      <p class="info-note">
-        No active schedule conflicts found.
-      </p>
-    `;
+    : '<p class="info-note">No active schedule conflicts found.</p>';
 }
 
 function classesPage() {
@@ -1273,23 +1163,18 @@ function classesPage() {
     user.role === 'student' &&
     user.active &&
     user.provisioning !== 'pending' &&
-    !active.some(
-      enrolment => enrolment.student_id === user.id
-    )
+    !active.some(enrolment => enrolment.student_id === user.id)
   );
 
   const visible = state.classes.filter(classroom =>
-    [
+    termSearch([
       classroom.code,
       classroom.name,
       classroom.semester,
       classroom.academic_session,
       classroom.section,
       nameOf(classroom.teacher_id)
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(classSearch.toLowerCase()) &&
+    ].join(' ')).includes(termSearch(classSearch)) &&
     matchesTerm(classroom.semester, classFilter)
   );
 
@@ -1305,19 +1190,13 @@ function classesPage() {
       <form data-kind="class" data-id="${h(edit?.id || '')}">
         <div class="form-grid">
           ${field(
-            'Subject code',
-            'code',
-            edit?.code,
-            'text',
+            'Subject code', 'code', edit?.code, 'text',
             `required maxlength="80" ${edit ? 'readonly' : ''}`
           )}
 
           ${field(
-            'Subject name',
-            'name',
-            edit?.name,
-            'text',
-            'required maxlength="150"'
+            'Subject name', 'name', edit?.name,
+            'text', 'required maxlength="150"'
           )}
 
           ${termFields(edit?.semester)}
@@ -1325,23 +1204,21 @@ function classesPage() {
           ${field(
             'Academic session',
             'academic_session',
-            edit?.academic_session ?? String(currentTerm().year),
+            displayTerm(
+              edit?.academic_session ?? String(currentTerm().year)
+            ),
             'text',
             `maxlength="80" ${edit ? 'readonly' : ''}`
           )}
 
           ${field(
-            'Section',
-            'section',
-            edit?.section,
-            'text',
+            'Section', 'section', edit?.section, 'text',
             `maxlength="80" ${edit ? 'readonly' : ''}`
           )}
 
           ${select(
             'Assigned teacher',
             'teacher_id',
-
             state.users
               .filter(user =>
                 user.role === 'teacher' &&
@@ -1351,7 +1228,6 @@ function classesPage() {
                 user.id,
                 user.name + (user.active ? '' : ' (disabled)')
               ]),
-
             edit?.teacher_id,
             true
           )}
@@ -1419,7 +1295,6 @@ function classesPage() {
   ` +
   panel(
     'Saved classes',
-
     `
       <form data-kind="class-search" class="filter-form">
         ${field(
@@ -1435,15 +1310,7 @@ function classesPage() {
       </form>
     ` +
     table(
-      [
-        'Class',
-        'Semester / session',
-        'Teacher',
-        'Routine',
-        'Status',
-        'Actions'
-      ],
-
+      ['Class', 'Semester / session', 'Teacher', 'Routine', 'Status', 'Actions'],
       visible.map(classroom => `
         <tr>
           <td>
@@ -1453,8 +1320,8 @@ function classesPage() {
           </td>
 
           <td>
-            ${h(classroom.semester)}
-            <small>${h(classroom.academic_session)}</small>
+            ${h(displayTerm(classroom.semester))}
+            <small>${h(displayTerm(classroom.academic_session))}</small>
           </td>
 
           <td>${h(nameOf(classroom.teacher_id))}</td>
@@ -1487,26 +1354,19 @@ function classesPage() {
   ) +
   panel(
     'Student enrolment',
-
     select(
       'Choose class',
       'roster_class',
-
       state.classes
         .filter(classroom =>
           matchesTerm(classroom.semester, classFilter)
         )
         .map(classroom => [
           classroom.id,
-
-          classroom.code +
-            ' — ' +
-            classroom.name +
-            ' · ' +
-            classroom.semester +
-            (classroom.active === false ? ' (archived)' : '')
+          classroom.code + ' — ' + classroom.name + ' · ' +
+          displayTerm(classroom.semester) +
+          (classroom.active === false ? ' (archived)' : '')
         ]),
-
       selectedClass
     ) +
     (
@@ -1530,12 +1390,10 @@ function classesPage() {
                   ${select(
                     'Student',
                     'student_id',
-
                     eligible.map(user => [
                       user.id,
                       (user.student_no || '—') + ' — ' + user.name
                     ]),
-
                     '',
                     true
                   )}
@@ -1555,26 +1413,20 @@ function classesPage() {
 
           ${table(
             ['Student', 'ID', 'Joining date', 'Action'],
-
             active.map(enrolment => `
               <tr>
                 <td>${h(nameOf(enrolment.student_id))}</td>
+                <td>${h(
+                  state.users.find(user =>
+                    user.id === enrolment.student_id
+                  )?.student_no || '—'
+                )}</td>
 
-                <td>
-                  ${h(
-                    state.users.find(user =>
-                      user.id === enrolment.student_id
-                    )?.student_no || '—'
-                  )}
-                </td>
-
-                <td>
-                  ${h(
-                    enrolment.periods?.at(-1)?.from ||
-                    enrolment.joined_on ||
-                    '—'
-                  )}
-                </td>
+                <td>${h(
+                  enrolment.periods?.at(-1)?.from ||
+                  enrolment.joined_on ||
+                  '—'
+                )}</td>
 
                 <td>
                   ${button(
@@ -1593,12 +1445,10 @@ function classesPage() {
 
             ${table(
               ['Student', 'Joined', 'Left', 'Status'],
-
               enrolled.flatMap(enrolment =>
                 (enrolment.periods || []).map(period => `
                   <tr>
                     <td>${h(nameOf(enrolment.student_id))}</td>
-
                     <td>
                       ${h(period.from)}
                       ${
@@ -1607,7 +1457,6 @@ function classesPage() {
                           : ''
                       }
                     </td>
-
                     <td>${h(period.to || '—')}</td>
                     <td>${badge(period.to ? 'Closed' : 'Current')}</td>
                   </tr>
@@ -1625,9 +1474,15 @@ function classesPage() {
   );
 }
 
-/* Results */
+/* Academic results */
 
 function semesterKey(value) {
+  const calendar = termInfo(value);
+
+  if (calendar) {
+    return calendar.label.toLowerCase();
+  }
+
   const name = String(value || '')
     .normalize('NFKC')
     .trim()
@@ -1638,7 +1493,9 @@ function semesterKey(value) {
     /^(?:semester\s*)?([1-9]\d?)(?:st|nd|rd|th)?(?:\s*semester)?$/
       .exec(name);
 
-  if (numeric) return 'semester ' + Number(numeric[1]);
+  if (numeric) {
+    return 'semester ' + Number(numeric[1]);
+  }
 
   return name.replace(
     /^(spring|summer|autumn|fall|winter)\s*[-/]?\s*(\d{4})$/,
@@ -1715,25 +1572,13 @@ function resultSummary(classes) {
     earned,
     max: maximum,
     average: maximum ? earned * 100 / maximum : null,
-
-    complete:
-      classes.length > 0 &&
-      results.length === classes.length
+    complete: classes.length > 0 && results.length === classes.length
   };
 }
 
 function marksTable(classes) {
   return table(
-    [
-      'Subject',
-      'Semester',
-      'Assessment',
-      'Midterm',
-      'Final',
-      'Total',
-      '%'
-    ],
-
+    ['Subject', 'Semester', 'Assessment', 'Midterm', 'Final', 'Total', '%'],
     classes.map(course => {
       const result = courseResult(course);
 
@@ -1741,16 +1586,14 @@ function marksTable(classes) {
         <tr>
           <td>
             <strong>${h(course.name)}</strong>
-            <small>
-              ${h([
-                course.code,
-                course.academic_session,
-                course.section
-              ].filter(Boolean).join(' · '))}
-            </small>
+            <small>${h([
+              course.code,
+              displayTerm(course.academic_session),
+              course.section
+            ].filter(Boolean).join(' · '))}</small>
           </td>
 
-          <td>${h(course.semester)}</td>
+          <td>${h(displayTerm(course.semester))}</td>
 
           ${['assessment', 'mid', 'final'].map(name => `
             <td>
@@ -1769,23 +1612,19 @@ function marksTable(classes) {
               result.complete
                 ? badge(
                     resultNumber(result.earned) +
-                    ' / ' +
-                    resultNumber(result.max) +
-                    ' · ' +
-                    (result.passed ? 'Pass' : 'Fail'),
+                    ' / ' + resultNumber(result.max) +
+                    ' · ' + (result.passed ? 'Pass' : 'Fail'),
                     result.passed ? 'present' : 'absent'
                   )
                 : badge('Incomplete', 'unmarked')
             }
           </td>
 
-          <td>
-            ${percentage(
-              result.complete
-                ? result.earned * 100 / result.max
-                : null
-            )}
-          </td>
+          <td>${percentage(
+            result.complete
+              ? result.earned * 100 / result.max
+              : null
+          )}</td>
         </tr>
       `;
     })
@@ -1801,8 +1640,7 @@ function attendanceSummary(rows) {
     'Not marked': 0
   };
 
-  rows
-    .filter(row => row.counted)
+  rows.filter(row => row.counted)
     .forEach(row => summary[row.status]++);
 
   const total = Object.values(summary)
@@ -1813,7 +1651,6 @@ function attendanceSummary(rows) {
     total,
     attended: summary.Present + summary.Late,
     pending: rows.filter(row => !row.counted).length,
-
     percentage: total
       ? (summary.Present + summary.Late) * 100 / total
       : null
@@ -1821,9 +1658,7 @@ function attendanceSummary(rows) {
 }
 
 function reportsPage() {
-  const students = state.users.filter(
-    user => user.role === 'student'
-  );
+  const students = state.users.filter(user => user.role === 'student');
 
   const chooser = `
     <form data-kind="load-report" class="filter-form">
@@ -1838,12 +1673,10 @@ function reportsPage() {
       ${select(
         'Student',
         'student_id',
-
         students.map(user => [
           user.id,
           (user.student_no || '—') + ' — ' + user.name
         ]),
-
         report?.profile.id || '',
         true
       )}
@@ -1864,16 +1697,15 @@ function reportsPage() {
   const profile = report.profile;
   const declared = report.current_semester || profile.semester || '';
 
-  const current = all.find(course =>
-    semesterKey(course.semester) === semesterKey(declared)
-  )?.semester || declared;
+  const current = displayTerm(
+    all.find(course =>
+      semesterKey(course.semester) === semesterKey(declared)
+    )?.semester || declared
+  );
 
   const visible = all.filter(course =>
     matchesTerm(course.semester, reportFilter) &&
-    (
-      !reportFilter.class_id ||
-      course.id === reportFilter.class_id
-    )
+    (!reportFilter.class_id || course.id === reportFilter.class_id)
   );
 
   const allTermClasses = term => all.filter(course =>
@@ -1888,7 +1720,7 @@ function reportsPage() {
     ...new Map(
       visible.map(course => [
         semesterKey(course.semester),
-        course.semester
+        displayTerm(course.semester)
       ])
     ).values()
   ].sort((a, b) => {
@@ -1897,13 +1729,7 @@ function reportsPage() {
 
     return x && y
       ? x.year - y.year ||
-        (
-          x.season === y.season
-            ? 0
-            : x.season === 'Summer'
-              ? -1
-              : 1
-        )
+        (x.season === y.season ? 0 : x.season === 'Summer' ? -1 : 1)
       : a.localeCompare(b, undefined, { numeric: true });
   });
 
@@ -1920,29 +1746,19 @@ function reportsPage() {
     )
   );
 
-  const ids = new Set(
-    visible.map(course => course.id)
-  );
+  const ids = new Set(visible.map(course => course.id));
 
   const rows = report.attendance.filter(session =>
     ids.has(session.class_id) &&
-    (
-      !reportFilter.from ||
-      session.lesson_date >= reportFilter.from
-    ) &&
-    (
-      !reportFilter.to ||
-      session.lesson_date <= reportFilter.to
-    )
+    (!reportFilter.from || session.lesson_date >= reportFilter.from) &&
+    (!reportFilter.to || session.lesson_date <= reportFilter.to)
   );
 
   const attendance = attendanceSummary(rows);
   const running = termClasses(current);
 
   const hasFilters = !!(
-    reportFilter.year ||
-    reportFilter.season ||
-    reportFilter.class_id
+    reportFilter.year || reportFilter.season || reportFilter.class_id
   );
 
   const runningBody = running.length
@@ -1954,21 +1770,18 @@ function reportsPage() {
             ? 'No current semester is assigned. Set Semester and Year in Student Management.'
             : !allTermClasses(current).length
               ? `The profile's current semester is ${h(current)}, but no enrolled subjects match it. Check the student's Semester/Year and Class Setup enrolments. Available terms: ${h(
-                  [...new Set(all.map(course => course.semester))]
-                    .join(', ') || 'none'
+                  [...new Set(
+                    all.map(course => displayTerm(course.semester))
+                  )].join(', ') || 'none'
                 )}.`
               : 'The current semester has no subjects matching the selected filters. Matching terms are shown in Semester history below.'
         }
       </p>
     `;
 
-  return panel(
-    'Student academic reports',
-    chooser
-  ) +
+  return panel('Student academic reports', chooser) +
   panel(
     profile.name,
-
     `<p class="muted">
       ${h([
         profile.student_no,
@@ -1980,7 +1793,6 @@ function reportsPage() {
   ) +
   panel(
     'Report filters',
-
     `
       <form data-kind="report-filter" class="filter-form">
         ${termFilterFields(reportFilter)}
@@ -1988,28 +1800,21 @@ function reportsPage() {
         ${select(
           'Subject (blank = all)',
           'class_id',
-
           all.map(course => [
             course.id,
-            course.code + ' — ' + course.name + ' · ' + course.semester
+            course.code + ' — ' + course.name +
+            ' · ' + displayTerm(course.semester)
           ]),
-
           reportFilter.class_id
         )}
 
         ${field(
-          'Attendance from',
-          'from',
-          reportFilter.from,
-          'date'
+          'Attendance from', 'from', reportFilter.from, 'date'
         )}
 
         ${field(
-          'Attendance to',
-          'to',
-          reportFilter.to,
-          'date',
-          `max="${today()}"`
+          'Attendance to', 'to', reportFilter.to,
+          'date', `max="${today()}"`
         )}
 
         <button type="submit">Apply filters</button>
@@ -2026,18 +1831,15 @@ function reportsPage() {
   ) +
   panel(
     'Overall result',
-
     metrics([
       ['Completed earlier semesters', previous.length],
       ['Fully graded subjects', overall.count],
-
       [
         'Earned / maximum',
         overall.count
           ? number(overall.earned) + ' / ' + number(overall.max)
           : '—'
       ],
-
       ['Weighted average', percentage(overall.average)]
     ]) +
     `<p class="info-note">
@@ -2050,23 +1852,17 @@ function reportsPage() {
   ) +
   panel(
     'Running semester result',
-
     `<p class="info-note">
       Pass: 40% or above.
       Fail: below 40% after all marks are entered.
       Missing marks stay Incomplete.
-    </p>` +
-    runningBody,
-
+    </p>` + runningBody,
     current || 'Not assigned'
   ) +
   panel(
     'Semester history',
-
     terms
-      .filter(term =>
-        semesterKey(term) !== semesterKey(current)
-      )
+      .filter(term => semesterKey(term) !== semesterKey(current))
       .map(term => {
         const courses = termClasses(term);
         const summary = resultSummary(courses);
@@ -2074,24 +1870,21 @@ function reportsPage() {
         return `
           <details class="semester-record" ${hasFilters ? 'open' : ''}>
             <summary>
-              ${h(term)}
+              ${h(displayTerm(term))}
               ${badge(
                 summary.complete
                   ? percentage(summary.average) + ' average'
                   : `${summary.count} / ${summary.total} graded`
               )}
             </summary>
-
             ${marksTable(courses)}
           </details>
         `;
-      })
-      .join('') ||
-      '<p class="empty-state">No other semester records match these filters.</p>'
+      }).join('') ||
+    '<p class="empty-state">No other semester records match these filters.</p>'
   ) +
   panel(
     'Student attendance',
-
     metrics([
       ['Recorded classes', attendance.total],
       ['Attended', attendance.attended],
@@ -2106,16 +1899,7 @@ function reportsPage() {
       ${attendance.pending} past sessions awaiting attendance are excluded.
     </p>` +
     table(
-      [
-        'Subject',
-        'Recorded',
-        'Attended',
-        'Absent',
-        'Excused',
-        'Not marked',
-        '%'
-      ],
-
+      ['Subject', 'Recorded', 'Attended', 'Absent', 'Excused', 'Not marked', '%'],
       visible.map(course => {
         const summary = attendanceSummary(
           rows.filter(row => row.class_id === course.id)
@@ -2125,7 +1909,9 @@ function reportsPage() {
           <tr>
             <td>
               <strong>${h(course.name)}</strong>
-              <small>${h(course.semester)} · ${h(course.code)}</small>
+              <small>
+                ${h(displayTerm(course.semester))} · ${h(course.code)}
+              </small>
             </td>
             <td>${summary.total}</td>
             <td>${summary.attended}</td>
@@ -2140,29 +1926,21 @@ function reportsPage() {
   ) +
   panel(
     'Dated class records',
-
     table(
       ['Date', 'Subject', 'Time', 'Status'],
-
       rows.map(session => `
         <tr>
           <td>${h(session.lesson_date)}</td>
-
           <td>
             ${h(session.name)}
-            <small>${h(session.semester)} · ${h(session.code)}</small>
+            <small>
+              ${h(displayTerm(session.semester))} · ${h(session.code)}
+            </small>
           </td>
-
-          <td>
-            ${h(session.start_time)}–${h(session.end_time)}
-          </td>
-
+          <td>${h(session.start_time)}–${h(session.end_time)}</td>
           <td>
             ${badge(
-              session.counted
-                ? session.status
-                : 'Awaiting attendance',
-
+              session.counted ? session.status : 'Awaiting attendance',
               session.counted
                 ? ({
                     Present: 'present',
@@ -2187,16 +1965,12 @@ function noticesPage() {
 
   return panel(
     edit ? 'Edit notice' : 'Publish notice',
-
     `
       <form data-kind="notice" data-id="${h(edit?.id || '')}">
         <div class="form-grid">
           ${field(
-            'Title',
-            'title',
-            edit?.title,
-            'text',
-            'required maxlength="140"'
+            'Title', 'title', edit?.title,
+            'text', 'required maxlength="140"'
           )}
 
           ${select(
@@ -2218,20 +1992,17 @@ function noticesPage() {
             <select name="recipient_ids" multiple size="6">
               ${state.users
                 .filter(user =>
-                  user.active &&
-                  user.provisioning !== 'pending'
+                  user.active && user.provisioning !== 'pending'
                 )
                 .map(user => `
                   <option
                     value="${h(user.id)}"
                     ${edit?.recipient_ids?.includes(user.id) ? 'selected' : ''}
                   >
-                    ${h(user.name)} ·
-                    ${h(user.role)} ·
+                    ${h(user.name)} · ${h(user.role)} ·
                     ${h(user.student_no || user.teacher_no || user.email)}
                   </option>
-                `)
-                .join('')}
+                `).join('')}
             </select>
 
             <small>Used only for Selected recipients.</small>
@@ -2259,7 +2030,6 @@ function noticesPage() {
   ) +
   panel(
     'Published notices',
-
     state.notices.map(notice => `
       <article class="notice-card">
         <h3>${h(notice.title)}</h3>
@@ -2281,41 +2051,29 @@ function noticesPage() {
   );
 }
 
-/* Admin profile */
+/* Profile */
 
 function profilePage() {
   const profile = state.profile;
 
   return panel(
     'Account information',
-
     `
       <p class="muted">${h(profile.email)}</p>
 
       <form data-kind="profile">
         <div class="form-grid">
           ${field(
-            'Full name',
-            'name',
-            profile.name,
-            'text',
-            'required maxlength="100"'
+            'Full name', 'name', profile.name,
+            'text', 'required maxlength="100"'
           )}
-
           ${field(
-            'Phone',
-            'phone',
-            profile.phone,
-            'tel',
-            'maxlength="150"'
+            'Phone', 'phone', profile.phone,
+            'tel', 'maxlength="150"'
           )}
-
           ${field(
-            'Department',
-            'department',
-            profile.department,
-            'text',
-            'maxlength="150"'
+            'Department', 'department', profile.department,
+            'text', 'maxlength="150"'
           )}
         </div>
 
@@ -2327,7 +2085,6 @@ function profilePage() {
   ) +
   panel(
     'Change password',
-
     `
       <form data-kind="own-password">
         <div class="form-grid">
@@ -2338,7 +2095,6 @@ function profilePage() {
             'password',
             'required autocomplete="current-password"'
           )}
-
           ${field(
             'New password',
             'new_password',
@@ -2346,7 +2102,6 @@ function profilePage() {
             'password',
             'required minlength="8" maxlength="128" autocomplete="new-password"'
           )}
-
           ${field(
             'Confirm password',
             'confirm_password',
@@ -2370,12 +2125,8 @@ function profilePage() {
 function render() {
   if (!ready) return;
 
-  const [name, query = ''] =
-    location.hash.slice(1).split('?');
-
-  const nextPage = Object.hasOwn(labels, name)
-    ? name
-    : 'dashboard';
+  const [name, query = ''] = location.hash.slice(1).split('?');
+  const nextPage = Object.hasOwn(labels, name) ? name : 'dashboard';
 
   if (nextPage !== page) {
     formFeedback.clear();
@@ -2398,18 +2149,17 @@ function render() {
 
   identity();
 
-  document.querySelectorAll('.tsb-nav a')
-    .forEach(link => {
-      const active = link.hash === '#' + page;
+  document.querySelectorAll('.tsb-nav a').forEach(link => {
+    const active = link.hash === '#' + page;
 
-      link.classList.toggle('active', active);
+    link.classList.toggle('active', active);
 
-      if (active) {
-        link.setAttribute('aria-current', 'page');
-      } else {
-        link.removeAttribute('aria-current');
-      }
-    });
+    if (active) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
+    }
+  });
 
   const pages = {
     dashboard,
@@ -2417,22 +2167,22 @@ function render() {
     students: () => accounts('student'),
     classes: classesPage,
     reports: reportsPage,
+    history: () => '',
     notices: noticesPage,
     profile: profilePage
   };
+
+  $('content').hidden = page === 'history';
 
   $('content').innerHTML = `
     <div class="page-intro">
       <div>
         <span class="eyebrow">CAMPUS ADMINISTRATION</span>
-
-        <h1>
-          ${
-            page === 'dashboard'
-              ? 'Welcome back, ' + h(state.profile.name) + '.'
-              : labels[page]
-          }
-        </h1>
+        <h1>${
+          page === 'dashboard'
+            ? 'Welcome back, ' + h(state.profile.name) + '.'
+            : labels[page]
+        }</h1>
       </div>
     </div>
   ` + pages[page]();
@@ -2448,9 +2198,7 @@ function passwordValid(data) {
     data.new_password.length > 128 ||
     data.new_password !== data.confirm_password
   ) {
-    throw Error(
-      'Use matching passwords of 8–128 characters.'
-    );
+    throw Error('Use matching passwords of 8–128 characters.');
   }
 }
 
@@ -2485,14 +2233,9 @@ async function loadReport(studentId, form = null) {
     };
 
     location.hash = '#reports';
-
     render();
 
-    message(
-      form ? 'Academic report loaded.' : '',
-      false,
-      form
-    );
+    message(form ? 'Academic report loaded.' : '', false, form);
   } catch (error) {
     message(error.message, true, form);
   } finally {
@@ -2501,7 +2244,7 @@ async function loadReport(studentId, form = null) {
   }
 }
 
-/* Form submissions */
+/* Submissions */
 
 document.addEventListener('submit', async event => {
   const form = event.target;
@@ -2510,7 +2253,6 @@ document.addEventListener('submit', async event => {
   if (!kind) return;
 
   event.preventDefault();
-
   if (busy) return;
 
   const data = Object.fromEntries(new FormData(form));
@@ -2522,14 +2264,12 @@ document.addEventListener('submit', async event => {
   }
 
   const record = form.dataset.id;
-
   const submit = (path, body, after) =>
     mutate(path, body, after, form);
 
   try {
     if (kind === 'directory-search') {
       checkTermFilter(data);
-
       directorySearch = data.search;
 
       if (page === 'students') {
@@ -2545,7 +2285,6 @@ document.addEventListener('submit', async event => {
 
     if (kind === 'class-search') {
       checkTermFilter(data);
-
       classSearch = data.search;
 
       classFilter = {
@@ -2575,6 +2314,14 @@ document.addEventListener('submit', async event => {
 
         delete data.term_name;
         delete data.term_year;
+
+        if (
+          record &&
+          semesterKey(data.semester) ===
+            semesterKey(edits.student?.semester)
+        ) {
+          data.semester = edits.student.semester;
+        }
       }
 
       if (record) {
@@ -2587,7 +2334,6 @@ document.addEventListener('submit', async event => {
         );
       } else {
         passwordValid(data);
-
         data.request_id = requestId(role);
 
         await submit(
@@ -2611,8 +2357,30 @@ document.addEventListener('submit', async event => {
 
       const newTerm =
         !!record &&
-        semesterKey(data.semester) !==
-          semesterKey(edits.class?.semester);
+        semesterKey(data.semester) !== semesterKey(edits.class?.semester);
+
+      if (record && !newTerm) {
+        data.semester = edits.class.semester;
+        data.academic_session = edits.class.academic_session || '';
+      }
+
+      if (!record || newTerm) {
+        const duplicate = state.classes.some(course =>
+          String(course.code).trim().toLowerCase() ===
+            String(data.code).trim().toLowerCase() &&
+          semesterKey(course.semester) === semesterKey(data.semester) &&
+          termSearch(course.academic_session) ===
+            termSearch(data.academic_session) &&
+          String(course.section || '').trim().toLowerCase() ===
+            String(data.section || '').trim().toLowerCase()
+        );
+
+        if (duplicate) {
+          throw Error(
+            'This subject/session/semester/section already exists. Edit or restore the saved class.'
+          );
+        }
+      }
 
       const bounds = termInfo(data.semester);
 
@@ -2624,38 +2392,24 @@ document.addEventListener('submit', async event => {
       data.weekly_slots = [
         ...document.querySelectorAll('.slot')
       ].map(element => ({
-        day: Number(
-          element.querySelector('[name="day"]').value
-        ),
-
-        start:
-          element.querySelector('[name="start"]').value,
-
-        end:
-          element.querySelector('[name="end"]').value,
-
-        room:
-          element.querySelector('[name="room"]').value.trim()
+        day: Number(element.querySelector('[name="day"]').value),
+        start: element.querySelector('[name="start"]').value,
+        end: element.querySelector('[name="end"]').value,
+        room: element.querySelector('[name="room"]').value.trim()
       }));
 
       await submit(
         record && !newTerm
           ? '/classes/' + encodeURIComponent(record) + '/save'
           : '/classes',
-
         data,
-
         result => {
           edits.class = null;
 
           if (!record || newTerm) {
             selectedClass = result.id;
             classSearch = '';
-
-            classFilter = {
-              year: '',
-              season: ''
-            };
+            classFilter = { year: '', season: '' };
           }
         }
       );
@@ -2668,22 +2422,16 @@ document.addEventListener('submit', async event => {
         '/classes/' + encodeURIComponent(record) + '/enrolments',
         data
       );
-
       return;
     }
 
     if (kind === 'close-enrolment') {
       await submit(
-        '/classes/' +
-          encodeURIComponent(selectedClass) +
-          '/enrolments/' +
-          encodeURIComponent(record) +
-          '/remove',
-
+        '/classes/' + encodeURIComponent(selectedClass) +
+        '/enrolments/' + encodeURIComponent(record) + '/remove',
         data,
         closeModal
       );
-
       return;
     }
 
@@ -2691,16 +2439,11 @@ document.addEventListener('submit', async event => {
       passwordValid(data);
 
       await submit(
-        '/' +
-          form.dataset.role +
-          's/' +
-          encodeURIComponent(record) +
-          '/password',
-
+        '/' + form.dataset.role + 's/' +
+        encodeURIComponent(record) + '/password',
         data,
         closeModal
       );
-
       return;
     }
 
@@ -2716,41 +2459,25 @@ document.addEventListener('submit', async event => {
         record
           ? '/notices/' + encodeURIComponent(record) + '/save'
           : '/notices',
-
         data,
-
         () => {
           edits.notice = null;
           clearId('notice');
         }
       );
-
       return;
     }
 
     if (kind === 'report-filter') {
       checkTermFilter(data);
 
-      if (
-        data.from &&
-        data.to &&
-        data.from > data.to
-      ) {
-        throw Error(
-          'End date must be on or after start date.'
-        );
+      if (data.from && data.to && data.from > data.to) {
+        throw Error('End date must be on or after start date.');
       }
 
       reportFilter = data;
-
       render();
-
-      message(
-        'Report filters applied.',
-        false,
-        form
-      );
-
+      message('Report filters applied.', false, form);
       return;
     }
 
@@ -2761,7 +2488,6 @@ document.addEventListener('submit', async event => {
 
     if (kind === 'teacher-attendance') {
       activeFeedbackKey = feedbackKey(form);
-
       lock(true);
       message('Loading attendance…', false, form);
 
@@ -2771,17 +2497,11 @@ document.addEventListener('submit', async event => {
             '/teacher-attendance?month=' +
             encodeURIComponent(data.month)
           ),
-
           teacher: data.teacher_id
         };
 
         render();
-
-        message(
-          'Work attendance loaded.',
-          false,
-          form
-        );
+        message('Work attendance loaded.', false, form);
       } finally {
         lock(false);
         activeFeedbackKey = '';
@@ -2792,7 +2512,6 @@ document.addEventListener('submit', async event => {
 
     if (kind === 'profile') {
       activeFeedbackKey = feedbackKey(form);
-
       lock(true);
       message('Saving profile…', false, form);
 
@@ -2806,7 +2525,6 @@ document.addEventListener('submit', async event => {
 
         identity();
         render();
-
         message(result.message, false, form);
 
         if (auth.currentUser?.reload) {
@@ -2822,9 +2540,7 @@ document.addEventListener('submit', async event => {
 
     if (kind === 'own-password') {
       passwordValid(data);
-
       activeFeedbackKey = feedbackKey(form);
-
       lock(true);
       message('Updating password…', false, form);
 
@@ -2841,7 +2557,6 @@ document.addEventListener('submit', async event => {
 
         await updatePassword(user, data.new_password);
         await signOut(auth);
-
         location.replace('/login.html?role=admin');
       } finally {
         lock(false);
@@ -2853,11 +2568,10 @@ document.addEventListener('submit', async event => {
   }
 });
 
-/* Buttons and actions */
+/* Actions */
 
 document.addEventListener('click', async event => {
   const element = event.target.closest('[data-action]');
-
   if (!element || busy) return;
 
   const action = element.dataset.action;
@@ -2881,12 +2595,8 @@ document.addEventListener('click', async event => {
 
   if (action === 'add-slot') {
     if (document.querySelectorAll('.slot').length < 21) {
-      $('slots').insertAdjacentHTML(
-        'beforeend',
-        slot()
-      );
+      $('slots').insertAdjacentHTML('beforeend', slot());
     }
-
     return;
   }
 
@@ -2900,7 +2610,6 @@ document.addEventListener('click', async event => {
         element.closest('form')
       );
     }
-
     return;
   }
 
@@ -2912,24 +2621,14 @@ document.addEventListener('click', async event => {
 
   if (action === 'reset-directory') {
     directorySearch = '';
-
-    directoryFilter = {
-      year: '',
-      season: ''
-    };
-
+    directoryFilter = { year: '', season: '' };
     render();
     return;
   }
 
   if (action === 'reset-classes') {
     classSearch = '';
-
-    classFilter = {
-      year: '',
-      season: ''
-    };
-
+    classFilter = { year: '', season: '' };
     render();
     return;
   }
@@ -2956,7 +2655,6 @@ document.addEventListener('click', async event => {
   if (action === 'teacher-classes') {
     classSearch = nameOf(id);
     location.hash = '#classes';
-
     render();
     return;
   }
@@ -2981,14 +2679,12 @@ document.addEventListener('click', async event => {
         </div>
       </form>
     `);
-
     return;
   }
 
   for (const role of ['teacher', 'student']) {
     const user = state.users.find(item =>
-      item.id === id &&
-      item.role === role
+      item.id === id && item.role === role
     );
 
     if (!user) continue;
@@ -3002,16 +2698,13 @@ document.addEventListener('click', async event => {
     if (
       action === 'status-' + role &&
       confirm(
-        (user.active ? 'Disable ' : 'Enable ') +
-        user.name +
-        '?'
+        (user.active ? 'Disable ' : 'Enable ') + user.name + '?'
       )
     ) {
       await mutate(
         '/' + role + 's/' + encodeURIComponent(id) + '/status',
         { active: !user.active }
       );
-
       return;
     }
 
@@ -3047,7 +2740,6 @@ document.addEventListener('click', async event => {
           </div>
         </form>
       `);
-
       return;
     }
   }
@@ -3064,11 +2756,8 @@ document.addEventListener('click', async event => {
     if (
       classroom &&
       confirm(
-        (
-          classroom.active === false
-            ? 'Restore'
-            : 'Archive'
-        ) + ' this class?'
+        (classroom.active === false ? 'Restore' : 'Archive') +
+        ' this class?'
       )
     ) {
       await mutate(
@@ -3076,15 +2765,11 @@ document.addEventListener('click', async event => {
         { active: classroom.active === false }
       );
     }
-
     return;
   }
 
   if (action === 'edit-notice') {
-    edits.notice = state.notices.find(
-      notice => notice.id === id
-    );
-
+    edits.notice = state.notices.find(notice => notice.id === id);
     render();
     return;
   }
@@ -3100,7 +2785,7 @@ document.addEventListener('click', async event => {
   }
 });
 
-/* Changes and live year preview */
+/* Live controls */
 
 document.addEventListener('change', event => {
   if (
@@ -3108,16 +2793,11 @@ document.addEventListener('change', event => {
     ['term_name', 'term_year'].includes(event.target.name)
   ) {
     const group = event.target.closest('[data-term-fields]');
-
     if (group) syncTermFields(group);
-
     return;
   }
 
-  if (
-    !busy &&
-    event.target.name === 'roster_class'
-  ) {
+  if (!busy && event.target.name === 'roster_class') {
     selectedClass = event.target.value;
     render();
   }
@@ -3126,9 +2806,7 @@ document.addEventListener('change', event => {
 document.addEventListener('input', event => {
   if (!busy && event.target.name === 'term_year') {
     const group = event.target.closest('[data-term-fields]');
-
     if (group) syncTermFields(group);
-
     return;
   }
 
@@ -3142,15 +2820,10 @@ document.addEventListener('input', event => {
 
   studentSelect.innerHTML =
     '<option value="">Select…</option>' +
-
     state.users
       .filter(user =>
         user.role === 'student' &&
-        [
-          user.name,
-          user.student_no,
-          user.email
-        ]
+        [user.name, user.student_no, user.email]
           .join(' ')
           .toLowerCase()
           .includes(query)
@@ -3159,11 +2832,10 @@ document.addEventListener('input', event => {
         <option value="${h(user.id)}">
           ${h(user.student_no || '—')} — ${h(user.name)}
         </option>
-      `)
-      .join('');
+      `).join('');
 });
 
-/* Navigation, refresh and logout */
+/* Navigation */
 
 window.addEventListener('hashchange', () => {
   if (!busy) {
@@ -3174,7 +2846,6 @@ window.addEventListener('hashchange', () => {
 
 $('refresh').addEventListener('click', async () => {
   if (busy) return;
-
   lock(true);
 
   try {
@@ -3189,10 +2860,7 @@ $('refresh').addEventListener('click', async () => {
 
     if (work) {
       work = {
-        ...await api(
-          '/teacher-attendance?month=' + work.month
-        ),
-
+        ...await api('/teacher-attendance?month=' + work.month),
         teacher: work.teacher
       };
     }
@@ -3208,7 +2876,6 @@ $('refresh').addEventListener('click', async () => {
 
 $('logout').addEventListener('click', async () => {
   if (busy) return;
-
   lock(true);
 
   try {
@@ -3221,9 +2888,7 @@ $('logout').addEventListener('click', async () => {
   }
 });
 
-$('retry').addEventListener('click', () => {
-  location.reload();
-});
+$('retry').addEventListener('click', () => location.reload());
 
 /* Authentication */
 
@@ -3231,7 +2896,6 @@ onAuthStateChanged(auth, async user => {
   const current = ++version;
 
   ready = false;
-
   $('workspace').hidden = true;
   $('loading').hidden = false;
 
@@ -3247,19 +2911,10 @@ onAuthStateChanged(auth, async user => {
 
     report = null;
     formFeedback.clear();
-
     work = null;
     selectedClass = '';
-
-    directoryFilter = {
-      year: '',
-      season: ''
-    };
-
-    classFilter = {
-      year: '',
-      season: ''
-    };
+    directoryFilter = { year: '', season: '' };
+    classFilter = { year: '', season: '' };
   }
 
   if (!user) {
@@ -3273,10 +2928,8 @@ onAuthStateChanged(auth, async user => {
     if (current !== version) return;
 
     ready = true;
-
     $('loading').hidden = true;
     $('workspace').hidden = false;
-
     render();
   } catch (error) {
     if (current === version) {
