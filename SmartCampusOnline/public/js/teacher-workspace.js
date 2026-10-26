@@ -244,6 +244,36 @@ function clearid(type) {
 
 /* Shared helpers */
 
+function attendanceBadge(status, count) {
+  const tones = {
+    Present: "present",
+    Attended: "present",
+    Late: "late",
+    Absent: "absent",
+    Excused: "excused",
+    "Not marked": "unmarked"
+  };
+
+  return `<span class="status ${tones[status] || "neutral"}">${
+    count === undefined ? "" : h(count) + " "
+  }${h(status)}</span>`;
+}
+
+function attendanceBadges(counts) {
+  return `<span class="attendance-badges" role="group" aria-label="Saved attendance counts">${
+    ["Present", "Late", "Absent", "Excused", "Not marked"]
+      .map(status => attendanceBadge(status, counts[status] ?? 0))
+      .join("")
+  }</span>`;
+}
+
+function attendedBreakdown(counts) {
+  return attendanceBadge("Attended", counts.Present + counts.Late) +
+    `<span class="attendance-breakdown">${
+      attendanceBadge("Present", counts.Present)
+    }${attendanceBadge("Late", counts.Late)}</span>`;
+}
+
 const selected = () => state.classes.find(item => item.id === cid);
 
 function roster() {
@@ -345,8 +375,11 @@ function picker(prefix) {
 
       <label>
         <span class="sr-only">Select class</span>
+
         <select data-class aria-label="Select class">
-          <option value="">Select a class</option>
+          <option value="" ${cid ? "" : "selected"}>
+            Select a class
+          </option>
 
           ${state.classes.map(item => `
             <option
@@ -405,7 +438,7 @@ function duration(record) {
   return Math.floor(minutes / 60) + "h " + minutes % 60 + "m";
 }
 
-/* Students */
+/* Student details */
 
 function studentsPage() {
   return `
@@ -1138,11 +1171,8 @@ function sessionForm() {
         )}
 
         ${input("Room", "room", "", "text", 'maxlength="100"')}
-
         ${input("Start time", "start_time", "", "time", "required")}
-
         ${input("End time", "end_time", "", "time", "required")}
-
         ${input("Topic", "topic", "", "text", 'maxlength="200"')}
       </div>
 
@@ -1387,6 +1417,7 @@ function sessionCards(classroom, lessons, report) {
 
           <span class="badge-row">
             <span class="badge">${h(report.stage(lesson))}</span>
+
             <span class="badge">
               ${
                 marked
@@ -1535,18 +1566,15 @@ function attendanceReports(classroom, report) {
             <td>${item.total}</td>
 
             <td>
-              <span class="status present">
-                ${item.Present + item.Late}
-              </span>
-              <small>${item.Present} present · ${item.Late} late</small>
+              ${attendedBreakdown(item)}
             </td>
 
             <td>
-              <span class="status absent">${item.Absent}</span>
+              ${attendanceBadge("Absent", item.Absent)}
             </td>
 
-            <td>${item.Excused}</td>
-            <td>${item["Not marked"]}</td>
+            <td>${attendanceBadge("Excused", item.Excused)}</td>
+            <td>${attendanceBadge("Not marked", item["Not marked"])}</td>
           </tr>
         `)
       )}
@@ -1581,10 +1609,10 @@ function attendanceReports(classroom, report) {
               </td>
 
               <td>${totals.total}</td>
-              <td>${totals.counts.Present + totals.counts.Late}</td>
-              <td>${totals.counts.Absent}</td>
-              <td>${totals.counts.Excused}</td>
-              <td>${totals.counts["Not marked"]}</td>
+              <td>${attendedBreakdown(totals.counts)}</td>
+              <td>${attendanceBadge("Absent", totals.counts.Absent)}</td>
+              <td>${attendanceBadge("Excused", totals.counts.Excused)}</td>
+              <td>${attendanceBadge("Not marked", totals.counts["Not marked"])}</td>
 
               <td>
                 <a
@@ -1627,9 +1655,9 @@ function attendanceReports(classroom, report) {
               <small>${h(student.student_no || "—")}</small>
             </span>
 
-            <span>
-              ${student.Present + student.Late} attended /
-              ${student.total} classes · View records
+            <span class="student-record-summary">
+              ${attendanceBadges(student)}
+              <small>${student.total} classes · View records</small>
             </span>
           </summary>
 
@@ -1649,13 +1677,7 @@ function attendanceReports(classroom, report) {
                   <td>${h(lesson.topic || classroom.name)}</td>
 
                   <td>
-                    <span class="status ${
-                      record.status === "Not marked"
-                        ? "neutral"
-                        : record.status.toLowerCase()
-                    }">
-                      ${h(record.status)}
-                    </span>
+                    ${attendanceBadge(record.status)}
                   </td>
 
                   <td>
@@ -1771,7 +1793,7 @@ function attendanceTake(classroom, report) {
           ],
           ["Absent", summary.counts.Absent, "absent"],
           ["Excused", summary.counts.Excused, "excused"],
-          ["Not marked", summary.counts["Not marked"], "neutral"]
+          ["Not marked", summary.counts["Not marked"], "unmarked"]
         ].map(([label, count, tone]) => `
           <article class="metric ${tone}">
             <span>${label}</span>
@@ -1792,7 +1814,7 @@ function attendanceTake(classroom, report) {
             </p>
           </div>
 
-          <span class="badge">${summary.counts.Late} late</span>
+          ${attendanceBadges(summary.counts)}
         </div>
 
         <p class="info-note">
@@ -1828,10 +1850,6 @@ function attendanceTake(classroom, report) {
               JSON.stringify([lid, student.id])
             ) ?? student.status;
 
-            const tone = student.status === "Not marked"
-              ? "neutral"
-              : student.status.toLowerCase();
-
             return `
               <tr data-search="${find([
                 student.name,
@@ -1848,9 +1866,7 @@ function attendanceTake(classroom, report) {
                 <td>${h(student.student_no || "—")}</td>
 
                 <td>
-                  <span class="status ${tone}">
-                    ${h(student.status)}
-                  </span>
+                  ${attendanceBadge(student.status)}
                 </td>
 
                 <td>
@@ -1898,7 +1914,7 @@ function attendanceTake(classroom, report) {
   `;
 }
 
-/* One page per task, without duplicate tabs */
+/* One page per task */
 
 function attendancePage() {
   const classroom = selected();
@@ -1973,7 +1989,8 @@ function render() {
   }
 
   if (!selected()) {
-    cid = state.classes.length === 1 ? state.classes[0].id : "";
+    cid = "";
+    lid = "";
   }
 
   if (params.has("lesson")) {

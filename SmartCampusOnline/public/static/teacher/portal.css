@@ -547,20 +547,47 @@ td small { margin-top: 4px; }
 td select, td input { margin: 0; }
 tbody tr:hover { background: #fafcfa; }
 
+/* Attendance status badges */
+
 .status {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
   padding: 5px 9px;
   border-radius: 6px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .status.present { background: #e8f5eb; color: #2e6d45; }
 .status.absent { background: #fceced; color: #a03c46; }
 .status.late { background: #fff3d9; color: #85621b; }
-.status.excused { background: #eef1fb; color: #55659a; }
+.status.excused { background: #edf3ff; color: #345f9e; }
+.status.unmarked { background: #edf0f4; color: #5c6573; }
 .status.neutral { background: #f0f3f1; color: #687a70; }
+
+.attendance-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.attendance-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.attendance-breakdown .status {
+  min-height: 25px;
+  padding: 3px 7px;
+  font-size: 12px;
+}
 
 /* Overview */
 
@@ -606,6 +633,7 @@ tbody tr:hover { background: #fafcfa; }
 .metric.present { background: #ecf6ee; border-color: #dceadd; }
 .metric.absent { background: #fff3f3; border-color: #efdfdf; }
 .metric.excused { background: #f3f5fc; border-color: #e1e5f1; }
+.metric.unmarked { background: #f3f5f8; border-color: #dfe4eb; }
 .metric .time-value { font-size: 23px; }
 
 /* Classes and dashboard */
@@ -626,7 +654,8 @@ tbody tr:hover { background: #fafcfa; }
 
 .class-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  grid-template-columns:
+    repeat(auto-fit, minmax(min(100%, 230px), 1fr));
   gap: 14px;
 }
 
@@ -844,6 +873,17 @@ legend { color: var(--muted); font-size: 14px; }
 .student-record summary > span:last-child {
   color: var(--accent);
   font-size: 14px;
+}
+
+.student-record-summary {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.student-record-summary > small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
 }
 
 .student-record[open] summary { margin-bottom: 16px; }
