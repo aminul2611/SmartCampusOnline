@@ -1,6 +1,4 @@
-import {
-  auth
-} from "./firebase-config.js";
+import { auth } from "./firebase-config.js";
 
 import {
   onAuthStateChanged,
@@ -12,22 +10,27 @@ import {
 
 const $ = id => document.getElementById(id);
 
-const h = value =>
-  String(value ?? "").replace(
-    /[&<>"']/g,
-    character => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    })[character]
-  );
+const h = value => String(value ?? "").replace(
+  /[&<>"']/g,
+  c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[c])
+);
+
+const ZONE = "Asia/Shanghai";
+
+const days = [
+  "Sunday", "Monday", "Tuesday", "Wednesday",
+  "Thursday", "Friday", "Saturday"
+];
 
 const titles = {
   dashboard: "Dashboard",
   classes: "My Classes",
-  tasks: "Tasks",
   attendance: "My Attendance",
   results: "My Results",
   notices: "My Notices",
@@ -36,41 +39,50 @@ const titles = {
 
 const descriptions = {
   dashboard:
-    "Your classes, progress and campus updates.",
+    "Your class schedule, attendance and results at a glance.",
 
   classes:
-    "Classes and routines assigned by your admin.",
-
-  tasks:
-    "Keep track of your assigned work.",
+    "Your current subjects, teachers and previous class records.",
 
   attendance:
-    "Attendance recorded by your teachers.",
+    "Review attendance by subject, semester and date.",
 
   results:
-    "Your assessment, midterm and final marks.",
+    "Overall progress, running semester marks and semester history.",
 
   notices:
-    "Updates sent directly to your account.",
+    "Updates from your teachers and campus office.",
 
   profile:
-    "Manage your personal details and password."
+    "Manage your personal information and account security."
 };
-
-const days = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday"
-];
 
 let state = null;
 let busy = false;
 let version = 0;
-let semester = "";
+let activeUid = "";
+let filters = freshFilters();
+
+function freshFilters() {
+  return {
+    classes: {
+      scope: "all",
+      semester: "",
+      search: ""
+    },
+
+    attendance: {
+      semester: "",
+      class_id: "",
+      from: "",
+      to: ""
+    },
+
+    notices: {
+      search: ""
+    }
+  };
+}
 
 function message(text, error = false) {
   $("student-message").textContent = text;
@@ -84,10 +96,14 @@ function message(text, error = false) {
 function lock(value) {
   busy = value;
 
-  document.querySelectorAll("button")
-    .forEach(button => {
-      button.disabled = value;
-    });
+  document.querySelectorAll("button").forEach(button => {
+    button.disabled = value;
+  });
+
+  $("student-content").setAttribute(
+    "aria-busy",
+    String(value)
+  );
 }
 
 async function api(path, body) {
@@ -103,71 +119,61 @@ async function api(path, body) {
     user.getIdToken(),
 
     new Promise((resolve, reject) => {
-      tokenTimer = setTimeout(() => {
-        reject(
-          Error(
-            "Login check timed out. Check your connection."
-          )
-        );
-      }, 25000);
+      tokenTimer = setTimeout(
+        () => reject(
+          Error("Login check timed out. Please retry.")
+        ),
+        25000
+      );
     })
-  ]).finally(() => {
-    clearTimeout(tokenTimer);
-  });
+  ]).finally(() => clearTimeout(tokenTimer));
 
   const controller = new AbortController();
 
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, 70000);
+  const timer = setTimeout(
+    () => controller.abort(),
+    70000
+  );
 
   try {
     const response = await fetch(
       "/api/student" + path,
       {
-        method: body === undefined
-          ? "GET"
-          : "POST",
+        method: body === undefined ? "GET" : "POST",
 
         headers: {
           Authorization: "Bearer " + token,
           "Content-Type": "application/json"
         },
 
-        ...(
-          body === undefined
-            ? {}
-            : {
-              body: JSON.stringify(body)
-            }
-        ),
+        ...(body === undefined
+          ? {}
+          : { body: JSON.stringify(body) }),
 
         signal: controller.signal
       }
     );
 
-    const contentType =
-      response.headers.get("content-type") || "";
-
-    if (!contentType.includes("application/json")) {
+    if (
+      !(response.headers.get("content-type") || "")
+        .includes("application/json")
+    ) {
       throw Error(
-        "Student API unavailable. Restart the updated Node server."
+        "Student information is unavailable. Please retry."
       );
     }
 
     const result = await response.json();
 
     if (!response.ok || !result.ok) {
-      throw Error(
-        result.message || "Request failed."
-      );
+      throw Error(result.message || "Request failed.");
     }
 
     return result;
   } catch (error) {
     if (error.name === "AbortError") {
       throw Error(
-        "Connection timed out. Refresh your saved information and retry."
+        "Connection timed out. Please refresh and retry."
       );
     }
 
@@ -180,699 +186,945 @@ async function api(path, body) {
 async function refresh() {
   const result = await api("/data");
 
+  if (auth.currentUser?.uid !== result.profile.id) {
+    throw Error("The account changed. Please reload.");
+  }
+
   if (
-    auth.currentUser?.uid !==
-    result.profile.id
+    !result.summary ||
+    !Array.isArray(result.attendance)
   ) {
     throw Error(
-      "The signed-in account changed. Please reload."
+      "The Student Portal update is incomplete. Deploy the updated Student API as well."
     );
   }
 
   state = result;
 }
 
-function when(value) {
-  const seconds =
-    value?.seconds ??
-    value?._seconds;
+/* Shared helpers */
 
-  const date = seconds != null
-    ? new Date(seconds * 1000)
-    : new Date(value);
-
-  if (!Number.isFinite(date.getTime())) {
-    return "Date unavailable";
-  }
-
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Shanghai",
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
+function number(value) {
+  return Number(value).toLocaleString("en-GB", {
+    maximumFractionDigits: 2
+  });
 }
 
-function empty(icon, title, description) {
+function percent(value) {
+  return value == null ? "—" : number(value) + "%";
+}
+
+function currentSemester() {
+  return String(state.current_semester || "").trim();
+}
+
+function isCurrent(c) {
+  return (
+    c.active &&
+    c.enrolment_active &&
+    (
+      !currentSemester() ||
+      c.semester === currentSemester()
+    )
+  );
+}
+
+function semesters() {
+  return [
+    ...new Set(
+      state.classes.map(c => c.semester)
+    )
+  ].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true })
+  );
+}
+
+function options(items, selected, all) {
+  return (
+    `<option value="">${h(all)}</option>` +
+    items.map(([value, label]) => `
+      <option
+        value="${h(value)}"
+        ${value === selected ? "selected" : ""}
+      >
+        ${h(label)}
+      </option>
+    `).join("")
+  );
+}
+
+function semesterOptions(selected) {
+  return options(
+    semesters().map(s => [s, s]),
+    selected,
+    "All semesters"
+  );
+}
+
+function empty(
+  title,
+  copy = "Your saved information will appear here."
+) {
   return `
-    <div class="sp-empty">
-      <span>${icon}</span>
-      <h3>${title}</h3>
-      <p>${description}</p>
+    <div class="empty-state">
+      <span class="empty-icon">▦</span>
+      <h3>${h(title)}</h3>
+      <p>${h(copy)}</p>
     </div>
   `;
 }
 
-function table(head, rows) {
+function panel(title, copy, body, extra = "") {
   return `
-    <div class="sp-table-wrap">
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <h2>${h(title)}</h2>
+          ${copy ? `<p>${h(copy)}</p>` : ""}
+        </div>
+        ${extra}
+      </div>
+
+      ${body}
+    </section>
+  `;
+}
+
+function stats(items) {
+  return `
+    <div class="metrics">
+      ${items.map(([label, value, tone = ""]) => `
+        <article class="metric ${tone}">
+          <span>${h(label)}</span>
+          <strong>${h(value)}</strong>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function table(headings, rows) {
+  return `
+    <div
+      class="table-wrap"
+      role="region"
+      aria-label="Scrollable data table"
+      tabindex="0"
+    >
       <table>
         <thead>
           <tr>
-            ${head.map(
-              label => `<th>${label}</th>`
-            ).join("")}
+            ${headings.map(label => `
+              <th scope="col">${h(label)}</th>
+            `).join("")}
           </tr>
         </thead>
 
         <tbody>
-          ${
-            rows.join("") ||
-            `
-              <tr>
-                <td colspan="${head.length}">
-                  No records yet.
-                </td>
-              </tr>
-            `
-          }
+          ${rows.join("") || `
+            <tr>
+              <td
+                colspan="${headings.length}"
+                class="empty-cell"
+              >
+                No records match this selection.
+              </td>
+            </tr>
+          `}
         </tbody>
       </table>
     </div>
   `;
 }
 
-function notices(list) {
-  return list.map(notice => `
-    <details class="sp-notice">
+function badge(text, tone = "neutral") {
+  return `<span class="badge ${tone}">${h(text)}</span>`;
+}
 
-      <summary>
-        ${h(notice.title)}
-      </summary>
+function statusBadge(status) {
+  const tones = {
+    Present: "present",
+    Late: "late",
+    Absent: "absent",
+    Excused: "excused"
+  };
+
+  return badge(status, tones[status] || "neutral");
+}
+
+/* Attendance totals */
+
+function attendanceSummary(history) {
+  const rows = history.filter(item => item.counted);
+
+  const counts = {
+    Present: 0,
+    Late: 0,
+    Absent: 0,
+    Excused: 0,
+    "Not marked": 0
+  };
+
+  for (const row of rows) {
+    counts[
+      Object.hasOwn(counts, row.status)
+        ? row.status
+        : "Not marked"
+    ]++;
+  }
+
+  const attended = counts.Present + counts.Late;
+
+  return {
+    total: rows.length,
+    attended,
+    counts,
+    pending: history.length - rows.length,
+
+    percentage: rows.length
+      ? Math.round(attended * 1000 / rows.length) / 10
+      : null
+  };
+}
+
+/* Results */
+
+function courseResult(c) {
+  const keys = ["assessment", "mid", "final"];
+
+  const complete = keys.every(k =>
+    c[k] != null &&
+    c[k] !== "" &&
+    Number.isFinite(Number(c[k])) &&
+    Number(c[k]) >= 0 &&
+    Number.isFinite(Number(c[k + "_max"])) &&
+    Number(c[k + "_max"]) >= 0 &&
+    Number(c[k]) <= Number(c[k + "_max"])
+  );
+
+  const maximum = keys.reduce(
+    (sum, k) => sum + Number(c[k + "_max"]),
+    0
+  );
+
+  const earned = complete
+    ? keys.reduce((sum, k) => sum + Number(c[k]), 0)
+    : null;
+
+  return {
+    complete: complete && maximum > 0,
+    earned,
+    maximum
+  };
+}
+
+function resultSummary(classes) {
+  const graded = classes
+    .map(courseResult)
+    .filter(r => r.complete);
+
+  const earned = graded.reduce(
+    (sum, r) => sum + r.earned,
+    0
+  );
+
+  const maximum = graded.reduce(
+    (sum, r) => sum + r.maximum,
+    0
+  );
+
+  return {
+    count: graded.length,
+    subjects: classes.length,
+    earned,
+    maximum,
+
+    average: maximum
+      ? earned * 100 / maximum
+      : null,
+
+    complete:
+      classes.length > 0 &&
+      graded.length === classes.length
+  };
+}
+
+function semesterResults() {
+  return semesters().map(name => {
+    const classes = state.classes.filter(
+      c => c.semester === name
+    );
+
+    return {
+      name,
+      classes,
+      ...resultSummary(classes)
+    };
+  });
+}
+
+function overallResult() {
+  const eligible = semesterResults().filter(term =>
+    currentSemester() &&
+    term.name !== currentSemester() &&
+    term.name !== "Semester not assigned" &&
+    term.complete
+  );
+
+  return {
+    ...resultSummary(
+      eligible.flatMap(term => term.classes)
+    ),
+
+    semesters: eligible.length
+  };
+}
+
+function when(value) {
+  if (value == null) return "Date unavailable";
+
+  const seconds = value?.seconds ?? value?._seconds;
+
+  const date = new Date(
+    seconds != null ? seconds * 1000 : value
+  );
+
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("en-GB", {
+        timeZone: ZONE,
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(date)
+    : "Date unavailable";
+}
+
+function noticeCards(items) {
+  return items.map(n => `
+    <details class="notice-card">
+      <summary>${h(n.title)}</summary>
 
       <small>
-        ${h(notice.author_name || "Campus")}
-        ·
-        ${h(notice.author_role || "")}
-        ·
-        ${h(when(notice.created_at))}
+        ${h(n.author_name || "Campus Office")}
+        · ${h(when(n.created_at))}
       </small>
 
-      <div class="sp-notice-body">
-        ${h(notice.body)}
-      </div>
-
+      <div class="notice-body">${h(n.body)}</div>
     </details>
-  `).join("") || empty(
-    "▧",
-    "Your inbox is clear",
-    "Notices addressed to you will appear here."
+  `).join("") || empty("No notices yet");
+}
+
+function resultTable(classes) {
+  return table(
+    [
+      "Subject",
+      "Assessment",
+      "Midterm",
+      "Final",
+      "Total",
+      "Result"
+    ],
+
+    classes.map(c => {
+      const r = courseResult(c);
+
+      return `
+        <tr>
+          <td>
+            <strong>${h(c.name)}</strong>
+            <small>${h(c.code)}</small>
+          </td>
+
+          ${["assessment", "mid", "final"].map(k => `
+            <td>
+              ${c[k] == null ? "—" : h(number(c[k]))}
+              / ${h(number(c[k + "_max"]))}
+            </td>
+          `).join("")}
+
+          <td>
+            ${
+              r.complete
+                ? `${number(r.earned)} / ${number(r.maximum)}`
+                : "—"
+            }
+          </td>
+
+          <td>
+            ${
+              r.complete
+                ? badge(
+                    percent(r.earned * 100 / r.maximum),
+                    "present"
+                  )
+                : badge("Pending")
+            }
+          </td>
+        </tr>
+      `;
+    })
   );
 }
 
-function stats(items) {
-  return `
-    <div class="sp-stats">
-      ${items.map(
-        ([label, value, icon, color]) => `
-          <article class="sp-stat">
-
-            ${
-              icon
-                ? `
-                  <span class="sp-icon ${color}">
-                    ${icon}
-                  </span>
-                `
-                : ""
-            }
-
-            <div>
-              <small>${label}</small>
-              <strong>${h(value)}</strong>
-            </div>
-
-          </article>
-        `
-      ).join("")}
-    </div>
-  `;
-}
+/* Dashboard */
 
 function dashboard() {
-  return `
-    ${stats([
-      [
-        "Assigned classes",
-        state.classes.length,
-        "▤",
-        "green"
-      ],
-      [
-        "Attendance",
-        state.percentage + "%",
-        "◷",
-        "blue"
-      ],
-      [
-        "Pending tasks",
-        state.tasks.length - state.completed,
-        "✓",
-        "purple"
-      ],
-      [
-        "My notices",
-        state.notices.length,
-        "▧",
-        "orange"
-      ]
-    ])}
+  const overall = overallResult();
 
-    <div class="sp-two-columns">
+  const running = state.classes.filter(
+    c => c.semester === currentSemester()
+  );
 
-      <section class="sp-card">
+  const result = resultSummary(running);
 
-        <div class="sp-card-title">
-          <h2>Today's classes</h2>
+  return stats([
+    [
+      "Current subjects",
+      state.classes.filter(isCurrent).length
+    ],
+    [
+      "Attendance",
+      percent(state.summary.percentage),
+      "green"
+    ],
+    [
+      "Completed semesters average",
+      percent(overall.average),
+      "blue"
+    ],
+    [
+      "Campus notices",
+      state.notices.length
+    ]
+  ]) + `
+    <div class="two-columns">
+      ${panel(
+        "Today's classes",
+        state.today,
 
-          <span class="sp-badge">
-            ${state.daily.length}
-          </span>
-        </div>
+        state.daily.map(s => `
+          <article class="session-row">
+            <span class="time-tile">
+              ${h(s.start_time)}
+              <small>${h(s.end_time)}</small>
+            </span>
 
-        ${
-          state.daily.map(lesson => `
-            <article class="sp-session">
+            <div class="session-copy">
+              <strong>${h(s.name)}</strong>
+              <small>
+                ${h(s.code)}
+                · ${h(s.room || "Room not set")}
+              </small>
+              <p>${h(s.topic || "Class session")}</p>
+            </div>
+          </article>
+        `).join("") || empty("No classes scheduled today"),
 
-              <div>
-                <span class="sp-code">
-                  ${h(lesson.code)}
-                </span>
+        '<a class="text-link" href="#classes">My classes →</a>'
+      )}
 
-                <h3>${h(lesson.name)}</h3>
+      ${panel(
+        "Running semester",
+        currentSemester() || "Not assigned by Admin",
 
-                <p>
-                  ${h(lesson.topic || "Class session")}
-                  ·
-                  ${h(lesson.room || "Room not set")}
-                </p>
-              </div>
+        currentSemester() ? `
+          <div class="result-highlight">
+            <span>Average of fully graded subjects</span>
+            <strong>${percent(result.average)}</strong>
+            <p>
+              ${result.count} of ${result.subjects}
+              subjects fully graded
+            </p>
+          </div>
 
-              <span class="sp-time">
-                ${h(lesson.start_time)}–${h(lesson.end_time)}
-              </span>
+          <p class="info-note">
+            ${
+              result.complete
+                ? "All listed subject marks are available."
+                : "Result is in progress. Missing marks are not treated as zero."
+            }
+          </p>
+        ` : empty(
+          "Semester not assigned",
+          "Ask your Admin to set your current semester."
+        ),
 
-            </article>
-          `).join("") || empty(
-            "◷",
-            "No classes scheduled today",
-            "Your scheduled sessions will appear here."
-          )
-        }
-
-      </section>
-
-      <section class="sp-card">
-
-        <div class="sp-card-title">
-          <h2>Latest notices</h2>
-          <a href="#notices">View all →</a>
-        </div>
-
-        ${notices(state.notices.slice(0, 3))}
-
-      </section>
-
+        '<a class="text-link" href="#results">View results →</a>'
+      )}
     </div>
 
-    <section class="sp-card">
-
-      <div class="sp-card-title">
-        <h2>My classes</h2>
-        <a href="#classes">View all →</a>
-      </div>
-
-      <div class="sp-class-grid">
-
-        ${
-          state.classes.slice(0, 3)
-            .map(classroom => `
-              <article class="sp-class">
-
-                <span class="sp-code">
-                  ${h(classroom.code)}
-                </span>
-
-                <h3>${h(classroom.name)}</h3>
-
-                <p>${h(classroom.semester)}</p>
-
-                <small>
-                  ${h(classroom.teacher_name)}
-                </small>
-
-              </article>
-            `).join("") || empty(
-              "▤",
-              "No classes assigned",
-              "Your admin will assign your classes."
-            )
-        }
-
-      </div>
-
-    </section>
+    ${panel(
+      "Latest notices",
+      "Updates from your campus",
+      noticeCards(state.notices.slice(0, 3)),
+      '<a class="text-link" href="#notices">View all →</a>'
+    )}
   `;
 }
 
-function semesterFilter() {
-  const semesters = [
-    ...new Set(
-      state.classes.map(
-        classroom => classroom.semester
+/* Classes */
+
+function classesPage() {
+  const f = filters.classes;
+
+  const terms = f.search
+    .toLocaleLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const visible = state.classes.filter(c =>
+    (!f.semester || c.semester === f.semester) &&
+    (
+      f.scope === "all" ||
+      (
+        f.scope === "current"
+          ? isCurrent(c)
+          : !isCurrent(c)
       )
+    ) &&
+    terms.every(term =>
+      [c.code, c.name, c.teacher_name]
+        .join(" ")
+        .toLocaleLowerCase()
+        .includes(term)
     )
-  ].sort();
+  );
 
   return `
     <form
-      class="sp-filter"
-      data-kind="semester"
+      class="panel filter-form"
+      data-kind="filter-classes"
     >
+      <label>
+        Classes
 
-      <label for="sp-semester">
-        Semester
+        <select name="scope">
+          ${[
+            ["all", "All classes"],
+            ["current", "Current classes"],
+            ["previous", "Previous classes"]
+          ].map(([v, label]) => `
+            <option
+              value="${v}"
+              ${f.scope === v ? "selected" : ""}
+            >
+              ${label}
+            </option>
+          `).join("")}
+        </select>
       </label>
 
-      <select
-        id="sp-semester"
-        name="semester"
-      >
-        <option value="">
-          All semesters
-        </option>
+      <label>
+        Semester
 
-        ${semesters.map(item => `
-          <option
-            value="${h(item)}"
-            ${semester === item ? "selected" : ""}
-          >
-            ${h(item)}
-          </option>
-        `).join("")}
+        <select name="semester">
+          ${semesterOptions(f.semester)}
+        </select>
+      </label>
 
-      </select>
+      <label>
+        Search
 
-      <button
-        class="sp-button"
-        type="submit"
-      >
-        Apply
-      </button>
+        <input
+          name="search"
+          value="${h(f.search)}"
+          placeholder="Subject, code or teacher"
+        >
+      </label>
 
+      <button type="submit">Apply filters</button>
     </form>
-  `;
-}
 
-function classesPage() {
-  const visible = state.classes.filter(
-    classroom =>
-      !semester ||
-      classroom.semester === semester
-  );
+    <div class="class-grid">
+      ${visible.map(c => {
+        const a = attendanceSummary(
+          state.attendance.filter(
+            s => s.class_id === c.id
+          )
+        );
 
-  return semesterFilter() + `
-    <div class="sp-class-grid">
+        return `
+          <article class="panel class-card">
+            <div class="section-heading">
+              ${badge(c.code)}
 
-      ${
-        visible.map(classroom => `
-          <article class="sp-card sp-course">
-
-            <div class="sp-card-title">
-
-              <span class="sp-icon green">
-                ▤
-              </span>
-
-              <span class="sp-badge">
-                ${h(classroom.semester)}
-              </span>
-
+              ${badge(
+                isCurrent(c) ? "Current" : "Previous",
+                isCurrent(c) ? "present" : "neutral"
+              )}
             </div>
 
-            <span class="sp-code">
-              ${h(classroom.code)}
-            </span>
+            <h2>${h(c.name)}</h2>
+            <p class="muted">${h(c.semester)}</p>
 
-            <h2>${h(classroom.name)}</h2>
-
-            <div class="sp-course-teacher">
-
+            <div class="teacher-line">
               <small>TEACHER</small>
-
-              <strong>
-                ${h(classroom.teacher_name)}
-              </strong>
-
+              <strong>${h(c.teacher_name)}</strong>
             </div>
 
-            <div class="sp-routine">
-
-              <small>WEEKLY ROUTINE</small>
-
-              ${
-                classroom.weekly_slots
-                  .map(slot => `
-                    <p>
-                      ◷ ${h(days[slot.day])}
-                      ${h(slot.start)}–${h(slot.end)}
-                      ${h(slot.room)}
-                    </p>
-                  `).join("") ||
-                "<p>Weekly time not set.</p>"
-              }
-
+            <div class="routine">
+              ${c.weekly_slots.map(slot => `
+                <p>
+                  <strong>${h(days[slot.day])}</strong>
+                  <span>${h(slot.start)}–${h(slot.end)}</span>
+                  <small>${h(slot.room || "Room not set")}</small>
+                </p>
+              `).join("") || `
+                <p class="muted">
+                  Weekly routine not assigned.
+                </p>
+              `}
             </div>
 
-            ${
-              classroom.active
-                ? ""
-                : `
-                  <p class="sp-note">
-                    Closed for new assignments.
-                    Your existing class record is retained.
-                  </p>
-                `
-            }
+            <p class="course-summary">
+              ${a.attended} attended /
+              ${a.total} recorded classes
+              · ${percent(a.percentage)}
+            </p>
 
+            <a
+              class="button secondary"
+              href="#attendance?class=${encodeURIComponent(c.id)}"
+            >
+              View class records →
+            </a>
           </article>
-        `).join("") || `
-          <section class="sp-card">
-            ${empty(
-              "▤",
-              "No classes found",
-              "Select another semester or contact your admin."
-            )}
-          </section>
-        `
-      }
-
+        `;
+      }).join("") || empty(
+        "No classes match your selection"
+      )}
     </div>
   `;
 }
 
-function resultsPage() {
-  const keys = [
-    "assessment",
-    "mid",
-    "final"
-  ];
+/* Attendance */
 
-  const visible = state.classes.filter(
-    classroom =>
-      !semester ||
-      classroom.semester === semester
+function attendancePage() {
+  const f = filters.attendance;
+
+  const classes = state.classes.filter(c =>
+    (!f.semester || c.semester === f.semester) &&
+    (!f.class_id || c.id === f.class_id)
   );
 
-  return semesterFilter() + `
-    <section class="sp-card">
+  const ids = new Set(classes.map(c => c.id));
 
-      <div class="sp-card-title">
+  const rows = state.attendance.filter(s =>
+    ids.has(s.class_id) &&
+    (!f.from || s.lesson_date >= f.from) &&
+    (!f.to || s.lesson_date <= f.to)
+  );
 
-        <h2>Semester results</h2>
+  const a = attendanceSummary(rows);
 
-        <span class="sp-badge">
-          ${visible.length} subjects
-        </span>
+  return `
+    <form
+      class="panel filter-form"
+      data-kind="filter-attendance"
+    >
+      <label>
+        Semester
 
-      </div>
+        <select name="semester">
+          ${semesterOptions(f.semester)}
+        </select>
+      </label>
 
-      ${table(
+      <label>
+        Subject
+
+        <select name="class_id">
+          ${options(
+            state.classes.map(c => [
+              c.id,
+              c.code + " — " + c.name + " · " + c.semester
+            ]),
+            f.class_id,
+            "All subjects"
+          )}
+        </select>
+      </label>
+
+      <label>
+        From
+
+        <input
+          type="date"
+          name="from"
+          value="${h(f.from)}"
+        >
+      </label>
+
+      <label>
+        To
+
+        <input
+          type="date"
+          name="to"
+          value="${h(f.to)}"
+          max="${h(state.today)}"
+        >
+      </label>
+
+      <button type="submit">Apply filters</button>
+
+      <button
+        type="button"
+        class="secondary"
+        data-reset="attendance"
+      >
+        Reset
+      </button>
+    </form>
+
+    ${stats([
+      ["Recorded classes", a.total],
+      ["Attended", a.attended, "green"],
+      ["Absent", a.counts.Absent, "red"],
+      ["Excused", a.counts.Excused],
+      ["Not marked", a.counts["Not marked"]],
+      ["Attendance", percent(a.percentage), "blue"]
+    ])}
+
+    <p class="info-note">
+      Only ended sessions with saved attendance count towards totals.
+      Present + Late = Attended.
+      Excused and Not marked remain in the recorded-class total
+      and are shown separately from Absent.
+      ${a.pending} past session(s) are awaiting attendance
+      and are excluded from the total.
+    </p>
+
+    ${panel(
+      "Attendance by subject",
+      "Totals follow the selected filters",
+
+      table(
         [
           "Subject",
           "Semester",
-          "Assessment",
-          "Midterm",
-          "Final",
-          "Total"
+          "Classes",
+          "Attended",
+          "Absent",
+          "Excused",
+          "Not marked",
+          "%"
         ],
 
-        visible.map(classroom => `
-          <tr>
+        classes.map(c => {
+          const s = attendanceSummary(
+            rows.filter(row => row.class_id === c.id)
+          );
 
-            <td>
-              <strong>
-                ${h(classroom.name)}
-              </strong>
-
-              <small>
-                ${h(classroom.code)}
-              </small>
-            </td>
-
-            <td>
-              ${h(classroom.semester)}
-            </td>
-
-            ${keys.map(name => `
+          return `
+            <tr>
               <td>
-                ${h(classroom[name] ?? "—")}
-                /
-                ${h(classroom[name + "_max"])}
+                <strong>${h(c.name)}</strong>
+                <small>${h(c.code)}</small>
               </td>
-            `).join("")}
 
-            <td>
-              ${
-                keys.every(
-                  name => classroom[name] != null
-                )
-                  ? `
-                    <strong class="sp-result">
-                      ${
-                        Math.round(
-                          keys.reduce(
-                            (sum, name) =>
-                              sum + Number(classroom[name]),
-                            0
-                          ) * 100
-                        ) / 100
-                      }
-                      /
-                      ${
-                        keys.reduce(
-                          (sum, name) =>
-                            sum +
-                            Number(classroom[name + "_max"]),
-                          0
-                        )
-                      }
-                    </strong>
-                  `
-                  : `
-                    <span class="sp-badge">
-                      Pending
-                    </span>
-                  `
-              }
-            </td>
+              <td>${h(c.semester)}</td>
+              <td>${s.total}</td>
 
-          </tr>
-        `)
-      )}
+              <td>
+                ${s.attended}
+                <small>
+                  ${s.counts.Present} present
+                  · ${s.counts.Late} late
+                </small>
+              </td>
 
-      <p class="sp-note">
-        Marks appear when your teacher saves them.
-        Total appears after all three marks are entered.
-      </p>
+              <td>${s.counts.Absent}</td>
+              <td>${s.counts.Excused}</td>
+              <td>${s.counts["Not marked"]}</td>
+              <td>${percent(s.percentage)}</td>
+            </tr>
+          `;
+        })
+      )
+    )}
 
-    </section>
-  `;
-}
+    ${panel(
+      "Class records",
+      "Date and saved status for each past session",
 
-function attendancePage() {
-  return stats(
-    [
-      "Present",
-      "Absent",
-      "Late",
-      "Excused"
-    ].map(label => [
-      label,
-      state.counts[label]
-    ])
-  ) + `
-    <section class="sp-card">
+      table(
+        ["Date", "Subject", "Time", "Topic", "Status"],
 
-      <div class="sp-card-title">
-        <div>
-          <h2>Class attendance</h2>
-
-          <p>
-            Present + Late:
-            ${h(state.percentage)}%
-          </p>
-        </div>
-      </div>
-
-      ${table(
-        [
-          "Date",
-          "Subject",
-          "Time",
-          "Status"
-        ],
-
-        state.attendance.map(item => `
+        rows.map(s => `
           <tr>
+            <td>${h(s.lesson_date)}</td>
 
             <td>
-              ${h(item.lesson_date)}
+              <strong>${h(s.name)}</strong>
+              <small>
+                ${h(s.code)} · ${h(s.semester)}
+              </small>
             </td>
+
+            <td class="nowrap">
+              ${h(s.start_time)}–${h(s.end_time)}
+            </td>
+
+            <td>${h(s.topic || "Class session")}</td>
 
             <td>
-              <strong>${h(item.name)}</strong>
-              <small>${h(item.code)}</small>
+              ${statusBadge(
+                s.counted
+                  ? s.status
+                  : "Awaiting attendance"
+              )}
             </td>
-
-            <td>
-              ${h(item.start_time)}–${h(item.end_time)}
-            </td>
-
-            <td>
-              <span
-                class="sp-status ${
-                  h(
-                    (item.status || "unmarked")
-                      .toLowerCase()
-                  )
-                }"
-              >
-                ${h(item.status || "Not marked")}
-              </span>
-            </td>
-
           </tr>
         `)
-      )}
+      )
+    )}
+  `;
+}
 
-      <p class="sp-note">
-        Includes sessions on or after your joining date,
-        up to today.
-        Not marked is separate from Absent.
+/* Results page */
+
+function resultsPage() {
+  const overall = overallResult();
+
+  const running = state.classes.filter(
+    c => c.semester === currentSemester()
+  );
+
+  const runningResult = resultSummary(running);
+
+  return panel(
+    "Overall result",
+    "Fully graded previous semesters",
+
+    stats([
+      ["Completed semesters", overall.semesters],
+      ["Graded subjects", overall.count],
+
+      [
+        "Total marks",
+        overall.count
+          ? number(overall.earned) + " / " + number(overall.maximum)
+          : "—"
+      ],
+
+      [
+        "Average percentage",
+        percent(overall.average),
+        "green"
+      ]
+    ]) + `
+      <p class="info-note">
+        Average = total earned marks ÷ total maximum marks × 100.
+        The running semester and incomplete semesters are excluded.
+        GPA/CGPA is not calculated.
       </p>
 
-    </section>
-  `;
-}
+      ${!currentSemester() ? `
+        <p class="warning-note">
+          Admin has not assigned your running semester.
+          Overall average will be available after it is set.
+        </p>
+      ` : ""}
+    `
+  ) + panel(
+    "Running semester result",
+    currentSemester() || "Not assigned",
 
-function tasksPage() {
-  return `
-    <section class="sp-card">
+    currentSemester()
+      ? `
+        <p class="info-note">
+          ${runningResult.count} of
+          ${runningResult.subjects} subjects fully graded.
 
-      <div class="sp-card-title">
+          ${
+            runningResult.complete
+              ? "All listed marks are available."
+              : "Result is in progress. Missing marks are not zero."
+          }
+        </p>
 
-        <h2>Assigned tasks</h2>
-
-        <span class="sp-badge">
-          ${state.completed}
-          /
-          ${state.tasks.length}
-          completed
-        </span>
-
-      </div>
-
-      ${
-        state.tasks.map(task => `
-          <article class="sp-task">
-
-            <div class="sp-task-copy">
-
-              <h3>${h(task.title)}</h3>
-
-              ${
-                task.description
-                  ? `
-                    <p class="sp-task-description">
-                      ${h(task.description)}
-                    </p>
-                  `
-                  : ""
-              }
-
-              <small>
-                Due:
-                ${h(task.due_date || "No deadline")}
-                ·
-                ${h(task.priority)} priority
-              </small>
-
-            </div>
-
-            <form
-              class="sp-task-form"
-              data-kind="task"
-              data-id="${h(task.id)}"
-            >
-
-              <select
-                name="status"
-                aria-label="Status for ${h(task.title)}"
-              >
-
-                ${
-                  [
-                    "Pending",
-                    "In Progress",
-                    "Completed"
-                  ].map(status => `
-                    <option
-                      ${status === task.status ? "selected" : ""}
-                    >
-                      ${status}
-                    </option>
-                  `).join("")
-                }
-
-              </select>
-
-              <button
-                class="sp-button"
-                type="submit"
-              >
-                Save
-              </button>
-
-            </form>
-
-          </article>
-        `).join("") || empty(
-          "✓",
-          "No tasks assigned",
-          "Your assigned work will appear here."
+        ${resultTable(running)}
+      `
+      : empty(
+          "Running semester not assigned",
+          "Ask your Admin to set your current semester."
         )
-      }
+  ) + panel(
+    "Semester history",
+    "Open a semester to see its subject marks",
 
-    </section>
-  `;
+    semesterResults()
+      .filter(term => term.name !== currentSemester())
+      .map(term => `
+        <details class="semester-record">
+          <summary>
+            <span>
+              <strong>${h(term.name)}</strong>
+              <small>
+                ${term.count} / ${term.subjects}
+                subjects fully graded
+              </small>
+            </span>
+
+            ${
+              term.complete
+                ? badge(percent(term.average), "present")
+                : badge("In progress")
+            }
+          </summary>
+
+          ${resultTable(term.classes)}
+        </details>
+      `).join("") || empty(
+        "No previous semester results"
+      )
+  );
 }
+
+/* Notices */
 
 function noticesPage() {
+  const query = filters.notices.search
+    .toLocaleLowerCase()
+    .trim();
+
+  const visible = state.notices.filter(n =>
+    [n.title, n.body, n.author_name]
+      .join(" ")
+      .toLocaleLowerCase()
+      .includes(query)
+  );
+
   return `
-    <section class="sp-card">
+    <form
+      class="panel filter-form"
+      data-kind="filter-notices"
+    >
+      <label>
+        Search notices
 
-      <div class="sp-card-title">
+        <input
+          name="search"
+          value="${h(filters.notices.search)}"
+          placeholder="Title, message or sender"
+        >
+      </label>
 
-        <h2>My inbox</h2>
+      <button type="submit">Search</button>
+    </form>
 
-        <span class="sp-badge">
-          ${state.notices.length} notices
-        </span>
-
-      </div>
-
-      ${notices(state.notices)}
-
-    </section>
+    ${panel(
+      "My inbox",
+      visible.length + " notices",
+      noticeCards(visible)
+    )}
   `;
 }
 
-function field(
-  label,
-  name,
-  value = "",
-  extra = ""
-) {
+/* Profile */
+
+function field(label, name, value = "", extra = "") {
   return `
     <label>
       ${label}
@@ -887,158 +1139,157 @@ function field(
 }
 
 function profilePage() {
-  const student = state.profile;
+  const p = state.profile;
 
   return `
-    <div class="sp-two-columns">
+    <section class="panel profile-banner">
+      <span class="profile-avatar">
+        ${h((p.name || "S").slice(0, 1))}
+      </span>
 
+      <div>
+        <span class="eyebrow">STUDENT ACCOUNT</span>
+        <h2>${h(p.name)}</h2>
+        <p>${h(p.email)}</p>
+      </div>
+    </section>
+
+    <div class="two-columns">
       <form
-        class="sp-card sp-profile-form"
+        class="panel profile-form"
         data-kind="profile"
       >
-
-        <div class="sp-card-title">
-
+        <div class="section-heading">
           <h2>Personal information</h2>
-
-          <span class="sp-icon green">
-            ◎
-          </span>
-
         </div>
 
         ${field(
           "Full name",
           "name",
-          student.name,
-          'maxlength="100" autocomplete="name" required'
+          p.name,
+          'required maxlength="100" autocomplete="name"'
         )}
 
         ${field(
           "Student ID",
           "student_no",
-          student.student_no,
+          p.student_no,
           "readonly"
         )}
 
         ${field(
-          "Email address",
+          "Email",
           "email",
-          student.email,
+          p.email,
           'type="email" readonly'
         )}
 
         ${field(
           "Department",
           "department",
-          student.department,
+          p.department,
+          "readonly"
+        )}
+
+        ${field(
+          "Current semester",
+          "semester",
+          p.semester,
           "readonly"
         )}
 
         ${field(
           "Phone",
           "phone",
-          student.phone,
+          p.phone,
           'type="tel" maxlength="150" autocomplete="tel"'
         )}
 
-        <p class="sp-note">
-          Contact your admin to change your ID,
-          email or department.
+        <p class="muted">
+          Contact Admin to change academic information or email.
         </p>
 
-        <button
-          class="sp-button"
-          type="submit"
-        >
-          Save profile →
-        </button>
-
+        <button type="submit">Save profile →</button>
       </form>
 
       <form
-        class="sp-card sp-profile-form"
+        class="panel profile-form"
         data-kind="password"
       >
-
-        <div class="sp-card-title">
-
+        <div class="section-heading">
           <h2>Change password</h2>
-
-          <span class="sp-icon purple">
-            ⚿
-          </span>
-
         </div>
 
         ${field(
           "Current password",
           "current_password",
           "",
-          'type="password" autocomplete="current-password" required'
+          'type="password" required autocomplete="current-password"'
         )}
 
         ${field(
           "New password",
           "new_password",
           "",
-          'type="password" minlength="8" maxlength="128" autocomplete="new-password" required'
+          'type="password" required minlength="8" maxlength="128" autocomplete="new-password"'
         )}
 
         ${field(
           "Confirm new password",
           "confirm_password",
           "",
-          'type="password" minlength="8" maxlength="128" autocomplete="new-password" required'
+          'type="password" required minlength="8" maxlength="128" autocomplete="new-password"'
         )}
 
-        <p class="sp-note">
-          After changing your password,
-          sign in again with the new password.
+        <p class="muted">
+          Sign in again after changing your password.
         </p>
 
-        <button
-          class="sp-button"
-          type="submit"
-        >
-          Change password →
-        </button>
-
+        <button type="submit">Change password →</button>
       </form>
-
     </div>
   `;
 }
 
+/* Navigation */
+
 function render() {
-  if (!state) {
-    return;
-  }
+  if (!state) return;
 
-  const name = location.hash.slice(1);
+  const [route, query = ""] = location.hash
+    .slice(1)
+    .split("?");
 
-  const page = Object.hasOwn(titles, name)
-    ? name
+  const page = Object.hasOwn(titles, route)
+    ? route
     : "dashboard";
 
-  state.completed = state.tasks.filter(
-    task => task.status === "Completed"
-  ).length;
+  const params = new URLSearchParams(query);
 
-  const student = state.profile;
+  if (
+    page === "attendance" &&
+    params.has("class")
+  ) {
+    const selected = params.get("class");
+
+    if (state.classes.some(c => c.id === selected)) {
+      filters.attendance.class_id = selected;
+      filters.attendance.semester = "";
+    }
+  }
 
   $("page-title").textContent = titles[page];
   $("today").textContent = state.today;
 
   document.querySelectorAll("[data-student-name]")
-    .forEach(element => {
-      element.textContent = student.name;
+    .forEach(el => {
+      el.textContent = state.profile.name;
     });
 
   document.querySelectorAll("[data-initial]")
-    .forEach(element => {
-      element.textContent = (
-        student.name || "S"
+    .forEach(el => {
+      el.textContent = (
+        state.profile.name || "S"
       ).slice(0, 1).toUpperCase();
     });
 
@@ -1058,7 +1309,6 @@ function render() {
   const pages = {
     dashboard,
     classes: classesPage,
-    tasks: tasksPage,
     attendance: attendancePage,
     results: resultsPage,
     notices: noticesPage,
@@ -1066,51 +1316,38 @@ function render() {
   };
 
   $("student-content").innerHTML = `
-    <div class="sp-page">
+    <header class="page-intro">
+      <div>
+        <span class="eyebrow">STUDENT WORKSPACE</span>
 
-      <header class="sp-heading">
+        <h1>
+          ${
+            page === "dashboard"
+              ? "Welcome back, " + h(state.profile.name) + "."
+              : titles[page]
+          }
+        </h1>
 
-        <div>
+        <p>${descriptions[page]}</p>
+      </div>
 
-          <span class="sp-eyebrow">
-            STUDENT WORKSPACE
-          </span>
+      ${badge(
+        "ID: " + (
+          state.profile.student_no || "Not assigned"
+        )
+      )}
+    </header>
 
-          <h1>
-            ${
-              page === "dashboard"
-                ? "Welcome, " + h(student.name) + "!"
-                : titles[page]
-            }
-          </h1>
-
-          <p>
-            ${descriptions[page]}
-          </p>
-
-        </div>
-
-        <span class="sp-id">
-          ID:
-          ${h(student.student_no || "Not assigned")}
-        </span>
-
-      </header>
-
-      ${pages[page]()}
-
-    </div>
+    ${pages[page]()}
   `;
 
   $("student-content").hidden = false;
 
-  if (busy) {
-    lock(true);
-  }
+  if (busy) lock(true);
 }
 
 function friendly(error) {
-  const messages = {
+  return ({
     "auth/invalid-credential":
       "Current password is incorrect.",
 
@@ -1120,30 +1357,24 @@ function friendly(error) {
     "auth/weak-password":
       "Choose a stronger password.",
 
-    "auth/password-does-not-meet-requirements":
-      "The password does not meet the account password policy.",
-
     "auth/too-many-requests":
-      "Too many attempts. Please wait before trying again.",
-
-    "auth/network-request-failed":
-      "Could not connect to Firebase. Check your connection.",
+      "Too many attempts. Please try later.",
 
     "auth/requires-recent-login":
       "Please sign in again before changing your password."
-  };
-
-  return messages[error.code] || error.message;
+  })[error.code] ||
+    error.message ||
+    "Something went wrong. Please retry.";
 }
+
+/* Forms */
 
 $("student-content").addEventListener(
   "submit",
   async event => {
     event.preventDefault();
 
-    if (busy) {
-      return;
-    }
+    if (busy) return;
 
     const form = event.target;
 
@@ -1153,32 +1384,75 @@ $("student-content").addEventListener(
 
     const kind = form.dataset.kind;
 
-    if (kind === "semester") {
-      semester = data.semester;
-      render();
-      return;
-    }
+    if (kind?.startsWith("filter-")) {
+      const key = kind.slice(7);
 
-    if (kind === "password") {
       if (
-        data.new_password.length < 8 ||
-        data.new_password.length > 128 ||
-        data.new_password !== data.confirm_password
+        key === "attendance" &&
+        data.from &&
+        data.to &&
+        data.from > data.to
       ) {
         message(
-          "Use matching new passwords of 8–128 characters.",
+          "Choose an end date on or after the start date.",
           true
         );
-
         return;
       }
 
-      lock(true);
-      message("Checking current password…");
+      filters[key] = data;
 
-      let changed = false;
+      if (
+        key === "attendance" &&
+        location.hash.includes("?")
+      ) {
+        history.replaceState(
+          null,
+          "",
+          "#attendance"
+        );
+      }
 
-      try {
+      render();
+      message("");
+      return;
+    }
+
+    if (!["profile", "password"].includes(kind)) {
+      return;
+    }
+
+    if (
+      kind === "password" &&
+      (
+        data.new_password.length < 8 ||
+        data.new_password.length > 128 ||
+        data.new_password !== data.confirm_password
+      )
+    ) {
+      message(
+        "Use matching new passwords of 8–128 characters.",
+        true
+      );
+      return;
+    }
+
+    lock(true);
+    message("Saving…");
+
+    let changed = false;
+
+    try {
+      if (kind === "profile") {
+        const result = await api("/profile", {
+          name: data.name.trim(),
+          phone: data.phone.trim()
+        });
+
+        state.profile = result.profile;
+        render();
+        message(result.message);
+      } else {
         await api("/profile");
 
         const user = auth.currentUser;
@@ -1197,7 +1471,6 @@ $("student-content").addEventListener(
         );
 
         changed = true;
-
         form.reset();
 
         await signOut(auth);
@@ -1205,67 +1478,53 @@ $("student-content").addEventListener(
         location.replace(
           "/login.html?role=student"
         );
-      } catch (error) {
-        message(
-          changed
-            ? "Password changed successfully. Log out, then sign in with your new password."
-            : friendly(error),
-          !changed
-        );
-      } finally {
-        lock(false);
-      }
-
-      return;
-    }
-
-    lock(true);
-    message("Saving…");
-
-    try {
-      if (kind === "profile") {
-        const result = await api("/profile", {
-          name: data.name.trim(),
-          phone: data.phone.trim()
-        });
-
-        state.profile = result.profile;
-
-        render();
-        message(result.message);
-      }
-
-      if (kind === "task") {
-        const result = await api(
-          "/tasks/" +
-          encodeURIComponent(form.dataset.id) +
-          "/status",
-          {
-            status: data.status
-          }
-        );
-
-        state.tasks.find(
-          task => task.id === form.dataset.id
-        ).status = result.status;
-
-        render();
-        message(result.message);
       }
     } catch (error) {
-      message(friendly(error), true);
+      message(
+        changed
+          ? "Password changed. Sign in again with the new password."
+          : friendly(error),
+        true
+      );
     } finally {
       lock(false);
     }
   }
 );
 
+/* Reset attendance filters */
+
+$("student-content").addEventListener(
+  "click",
+  event => {
+    if (
+      busy ||
+      !event.target.closest(
+        "[data-reset='attendance']"
+      )
+    ) {
+      return;
+    }
+
+    filters.attendance = freshFilters().attendance;
+
+    history.replaceState(
+      null,
+      "",
+      "#attendance"
+    );
+
+    render();
+    message("");
+  }
+);
+
+/* Refresh */
+
 $("student-refresh").addEventListener(
   "click",
   async () => {
-    if (busy) {
-      return;
-    }
+    if (busy) return;
 
     lock(true);
 
@@ -1281,14 +1540,14 @@ $("student-refresh").addEventListener(
   }
 );
 
+/* Logout */
+
 $("student-logout").addEventListener(
   "submit",
   async event => {
     event.preventDefault();
 
-    if (busy) {
-      return;
-    }
+    if (busy) return;
 
     lock(true);
 
@@ -1314,40 +1573,38 @@ $("student-retry").addEventListener(
 window.addEventListener(
   "hashchange",
   () => {
-    if (!busy) {
-      render();
-    }
+    if (!busy) render();
   }
 );
+
+/* Authentication */
 
 onAuthStateChanged(auth, async user => {
   const current = ++version;
 
   state = null;
-
   $("student-content").hidden = true;
   $("student-retry").hidden = true;
+
+  if (activeUid !== user?.uid) {
+    filters = freshFilters();
+    activeUid = user?.uid || "";
+  }
 
   if (!user) {
     location.replace(
       "/login.html?role=student"
     );
-
     return;
   }
 
   lock(true);
-
-  message(
-    "Checking Student account and loading data…"
-  );
+  message("Loading your student workspace…");
 
   try {
     await refresh();
 
-    if (current !== version) {
-      return;
-    }
+    if (current !== version) return;
 
     render();
     message("");

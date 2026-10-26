@@ -2,147 +2,121 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142840">
   <title>Administration · Smart Campus</title>
-
-  <link
-    rel="stylesheet"
-    href="../static/admin/workspace.css?v=3"
-  >
+  <link rel="stylesheet" href="../static/admin/workspace.css?v=4">
 </head>
-
-<body>
-
-  <section
-    id="loading"
-    class="loading"
-    role="status"
-  >
+<body class="admin-portal">
+  <section id="loading" class="loading" role="status">
+    <span class="brand-logo">SC</span>
     <h1>Smart Campus</h1>
-
-    <p id="loading-text">
-      Loading administrator workspace…
-    </p>
-
-    <button id="retry" type="button" hidden>
-      Try again
-    </button>
-
-    <p>
-      <a href="../login.html?role=admin">
-        Back to login
-      </a>
-    </p>
+    <p id="loading-text">Loading administration…</p>
+    <button id="retry" type="button" hidden>Try again</button>
+    <a class="text-link" href="../login.html?role=admin">Back to login</a>
   </section>
 
-  <div
-    id="workspace"
-    class="layout"
-    hidden
-  >
-    <aside>
-
+  <div id="workspace" hidden>
+    <aside class="sidebar">
       <a class="brand" href="#dashboard">
-        <span class="logo">SC</span>
-
+        <span class="brand-logo">SC</span>
         <span>
-          Smart Campus
+          <strong>Smart Campus</strong>
           <small>Administration</small>
         </span>
       </a>
 
-      <p class="eyebrow">MANAGEMENT</p>
+      <span class="menu-label">CAMPUS MANAGEMENT</span>
 
-      <nav aria-label="Admin navigation">
-        <a href="#dashboard">▦ Dashboard</a>
-        <a href="#teachers">◷ Teacher Details</a>
-        <a href="#students">♙ Student Details</a>
-        <a href="#classes">▤ Class Setup</a>
-        <a href="#notices">▧ Notices</a>
-        <a href="#profile">◎ Profile</a>
+      <nav class="tsb-nav" aria-label="Admin navigation">
+        <a href="#dashboard">
+          <span aria-hidden="true">▦</span>Dashboard
+        </a>
+        <a href="#teachers">
+          <span aria-hidden="true">◷</span>Teacher Management
+        </a>
+        <a href="#students">
+          <span aria-hidden="true">♙</span>Student Management
+        </a>
+        <a href="#classes">
+          <span aria-hidden="true">▤</span>Class Setup
+        </a>
+        <a href="#reports">
+          <span aria-hidden="true">↗</span>Academic Reports
+        </a>
+        <a href="#notices">
+          <span aria-hidden="true">▧</span>Notices
+        </a>
+        <a href="#profile">
+          <span aria-hidden="true">◎</span>Admin Profile
+        </a>
       </nav>
 
-      <div class="account">
-        <strong id="admin-name"></strong>
-        <small id="admin-email"></small>
+      <div class="sidebar-bottom">
+        <div class="sidebar-account">
+          <span class="avatar" data-admin-initial>A</span>
+          <div>
+            <strong data-admin-name>Administrator</strong>
+            <small id="admin-email"></small>
+          </div>
+        </div>
+
+        <button id="logout" type="button" class="logout-button">
+          Log out →
+        </button>
       </div>
-
-      <button
-        id="logout"
-        class="danger"
-        type="button"
-      >
-        Log out →
-      </button>
-
     </aside>
 
-    <div class="main-column">
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-title">
+          <strong id="page-title">Dashboard</strong>
+          <small id="page-date"></small>
+        </div>
 
-      <header>
-        <strong id="page-title">
-          Dashboard
-        </strong>
-
-        <div>
-          <span id="page-date"></span>
-          <span class="badge">Admin</span>
-
-          <button
-            id="refresh"
-            class="secondary"
-            type="button"
-          >
+        <div class="topbar-actions">
+          <span class="admin-tag">ADMINISTRATION</span>
+          <button id="refresh" type="button" class="secondary">
             Refresh
           </button>
+          <a
+            href="#profile"
+            class="avatar"
+            data-admin-initial
+            aria-label="Admin Profile"
+          >A</a>
         </div>
       </header>
 
       <main>
-
-        <p
-          id="working"
-          class="working"
-          role="status"
-          hidden
-        >
-          Saving… Please keep this page open.
+        <p id="working" class="info-note" role="status" hidden>
+          Saving changes…
         </p>
-
         <p
           id="message"
+          class="flash"
           role="status"
           aria-live="polite"
           hidden
         ></p>
-
         <div id="content"></div>
-
       </main>
 
-      <footer>
-        Smart Campus · Developed by Md. Aminul Islam
-      </footer>
-
+      <footer>Smart Campus · Developed by Md. Aminul Islam</footer>
     </div>
   </div>
 
+  <dialog id="modal"></dialog>
+
   <script type="module">
-  import("../js/admin-workspace.js?v=3").catch((error) => {
-    console.error("Admin workspace load error:", error);
+    import('../js/admin-workspace.js?v=4').catch(() => {
+      document.getElementById('loading-text').textContent =
+        'The Admin Portal could not load. Please refresh and retry.';
 
-    document.getElementById("loading-text").textContent =
-      "Could not load Firebase or the Admin scripts. " +
-      "Check your connection and file paths.";
-
-    document.getElementById("retry").hidden = false;
-  });
-</script>
-
+      const retry = document.getElementById('retry');
+      retry.hidden = false;
+      retry.onclick = () => location.reload();
+    });
+  </script>
 </body>
 </html>

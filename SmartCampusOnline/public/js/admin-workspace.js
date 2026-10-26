@@ -1,4 +1,4 @@
-import { auth } from "./firebase-config.js";
+import { auth } from './firebase-config.js';
 
 import {
   onAuthStateChanged,
@@ -6,39 +6,38 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword
-} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 
 const $ = id => document.getElementById(id);
 
-const h = value => String(value ?? "").replace(
-  /[&<>"']/g,
-  character => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[character])
-);
-
-const dayNames = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday"
-];
+const h = value => String(value ?? '')
+  .replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[character]));
 
 const labels = {
-  dashboard: "Dashboard",
-  teachers: "Teacher Details",
-  students: "Student Details",
-  classes: "Class Setup",
-  notices: "Notices",
-  profile: "Profile"
+  dashboard: 'Dashboard',
+  teachers: 'Teacher Management',
+  students: 'Student Management',
+  classes: 'Class Setup',
+  reports: 'Student Academic Reports',
+  notices: 'Notices',
+  profile: 'Admin Profile'
 };
+
+const days = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday'
+];
 
 let state = {
   users: [],
@@ -46,88 +45,105 @@ let state = {
   enrolments: [],
   notices: [],
   received: [],
+  conflicts: [],
   profile: null,
   overview: null
 };
 
-let page = "dashboard";
 let busy = false;
 let ready = false;
-let authVersion = 0;
-let selectedClass = "";
+let version = 0;
+let uid = '';
+let page = 'dashboard';
+let selectedClass = '';
+let report = null;
+let work = null;
+let refreshNeeded = false;
 
-const edits = {
+let edits = {
   teacher: null,
   student: null,
   class: null,
   notice: null
 };
 
-function campusDate() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
+let directorySearch = '';
+let classSearch = '';
+
+let reportFilter = {
+  semester: '',
+  class_id: '',
+  from: '',
+  to: ''
+};
+
+function today() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
   }).formatToParts(new Date());
 
-  return ["year", "month", "day"]
-    .map(type => parts.find(part => part.type === type).value)
-    .join("-");
+  return ['year', 'month', 'day']
+    .map(name => parts.find(part => part.type === name).value)
+    .join('-');
 }
 
 function message(text, error = false) {
-  const element = $("message");
+  $('message').textContent = text;
+  $('message').className =
+    'flash ' + (error ? 'danger' : 'success');
 
-  element.textContent = text;
-  element.className =
-    "message " + (error ? "error" : "success");
-  element.hidden = !text;
-
-  if (text) {
-    element.scrollIntoView({
-      block: "nearest",
-      behavior: "smooth"
-    });
-  }
+  $('message').hidden = !text;
 }
 
-function withDeadline(promise, milliseconds = 25000) {
-  let timer;
+function lock(value) {
+  busy = value;
+  $('working').hidden = !value;
 
-  return Promise.race([
-    promise,
-    new Promise((resolve, reject) => {
-      timer = setTimeout(() => {
-        reject(new Error(
-          "Connection timed out. Check your internet and retry."
-        ));
-      }, milliseconds);
-    })
-  ]).finally(() => clearTimeout(timer));
+  document.querySelectorAll('button')
+    .forEach(button => button.disabled = value);
+
+  $('content').setAttribute(
+    'aria-busy',
+    String(value)
+  );
 }
 
 async function api(path, body) {
   const user = auth.currentUser;
+  if (!user) throw Error('Please sign in again.');
 
-  if (!user) {
-    throw new Error("Please sign in again.");
-  }
+  let tokenTimer;
 
-  const token = await withDeadline(user.getIdToken());
+  const token = await Promise.race([
+    user.getIdToken(),
+
+    new Promise((resolve, reject) => {
+      tokenTimer = setTimeout(
+        () => reject(
+          Error('Login check timed out. Please retry.')
+        ),
+        25000
+      );
+    })
+  ]).finally(() => clearTimeout(tokenTimer));
+
   const controller = new AbortController();
 
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, 70000);
+  const timer = setTimeout(
+    () => controller.abort(),
+    70000
+  );
 
   try {
-    const response = await fetch("/api" + path, {
-      method: body === undefined ? "GET" : "POST",
+    const response = await fetch('/api' + path, {
+      method: body === undefined ? 'GET' : 'POST',
 
       headers: {
-        Authorization: "Bearer " + token,
-        "Content-Type": "application/json"
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json'
       },
 
       ...(body === undefined
@@ -137,31 +153,26 @@ async function api(path, body) {
       signal: controller.signal
     });
 
-    const contentType =
-      response.headers.get("content-type") || "";
-
-    if (!contentType.includes("application/json")) {
-      throw new Error(
-        "Admin API is unavailable. Open port 5003 locally, " +
-        "or deploy Functions and Hosting together."
+    if (
+      !(response.headers.get('content-type') || '')
+        .includes('application/json')
+    ) {
+      throw Error(
+        'Admin information is unavailable. Please retry.'
       );
     }
 
-    const result = await response.json();
+    const data = await response.json();
 
-    if (!response.ok || !result.ok) {
-      throw new Error(
-        result.message || "The request failed."
-      );
+    if (!response.ok || !data.ok) {
+      throw Error(data.message || 'Request failed.');
     }
 
-    return result;
+    return data;
   } catch (error) {
-    if (error.name === "AbortError") {
-      throw new Error(
-        "The server did not respond in time. " +
-        "Keep the same values and retry; check the saved list " +
-        "before creating another record."
+    if (error.name === 'AbortError') {
+      throw Error(
+        'Request timed out. Refresh saved information before retrying.'
       );
     }
 
@@ -171,115 +182,186 @@ async function api(path, body) {
   }
 }
 
+function identity() {
+  document.querySelectorAll('[data-admin-name]')
+    .forEach(element => {
+      element.textContent =
+        state.profile?.name || 'Administrator';
+    });
+
+  document.querySelectorAll('[data-admin-initial]')
+    .forEach(element => {
+      element.textContent =
+        (state.profile?.name || 'A')
+          .slice(0, 1)
+          .toUpperCase();
+    });
+
+  $('admin-email').textContent =
+    state.profile?.email || '';
+}
+
 async function refresh() {
+  const account = await api('/profile');
+
+  if (account.profile.id !== auth.currentUser?.uid) {
+    throw Error('Account changed. Please reload.');
+  }
+
+  state.profile = account.profile;
+  identity();
+
   const [
     directory,
     classes,
     notices,
-    profile,
-    overview
+    overview,
+    conflicts
   ] = await Promise.all([
-    api("/directory"),
-    api("/classes"),
-    api("/notices"),
-    api("/profile"),
-    api("/overview?date=" + campusDate())
+    api('/directory'),
+    api('/classes'),
+    api('/notices'),
+    api('/overview?date=' + today()),
+    api('/schedule-conflicts')
   ]);
 
+  if (account.profile.id !== auth.currentUser?.uid) {
+    throw Error('Account changed. Please reload.');
+  }
+
   state = {
+    ...state,
     users: directory.users,
     classes: classes.classes,
     enrolments: classes.enrolments,
     notices: notices.notices,
     received: notices.received || [],
-    profile: profile.profile,
-    overview
+    overview,
+    conflicts: conflicts.conflicts
   };
 
-  for (const collection of ["users", "classes", "notices"]) {
-    state[collection].sort((a, b) =>
-      (a.name || a.title || "").localeCompare(
-        b.name || b.title || ""
-      )
-    );
-  }
+  state.users.sort((a, b) =>
+    String(a.name).localeCompare(String(b.name))
+  );
 
-  $("admin-name").textContent = state.profile.name;
-  $("admin-email").textContent = state.profile.email;
+  refreshNeeded = false;
 }
 
-function setBusy(value) {
-  busy = value;
-  $("working").hidden = !value;
-
-  document.querySelectorAll("button").forEach(button => {
-    button.disabled = value;
-  });
-
-  $("content").setAttribute("aria-busy", String(value));
-}
-
-async function mutate(path, data, after = () => {}) {
+async function mutate(
+  path,
+  data,
+  after = () => {}
+) {
   if (busy) return;
 
-  setBusy(true);
-  message("Saving changes…");
+  if (refreshNeeded) {
+    message(
+      'The last change was saved. Use Refresh before making another change.',
+      true
+    );
+    return;
+  }
+
+  lock(true);
+  message('Saving…');
+
+  let saved = false;
 
   try {
     const result = await api(path, data);
 
+    saved = true;
+    refreshNeeded = true;
+
     after(result);
+    await refresh();
 
-    try {
-      await refresh();
-      render();
-      message(result.message || "Saved successfully.");
-    } catch (error) {
-      message(
-        "Your change was saved, but the list could not refresh. " +
-        "Use Refresh. " + error.message,
-        true
-      );
-    }
+    render();
+    message(result.message || 'Saved.');
   } catch (error) {
-    message(error.message, true);
+    message(
+      (
+        saved
+          ? 'Saved, but the workspace could not refresh. Use Refresh. '
+          : ''
+      ) + error.message,
+      true
+    );
   } finally {
-    setBusy(false);
+    lock(false);
   }
 }
 
-function values(form) {
-  const data = Object.fromEntries(new FormData(form));
+function requestId(type) {
+  const storageKey =
+    'smart-campus.admin.' + uid + '.' + type;
 
-  for (const field of Object.keys(data)) {
-    if (!field.includes("password")) {
-      data[field] = data[field].trim();
-    }
+  let value = sessionStorage.getItem(storageKey);
+
+  if (!/^[a-f0-9]{32}$/.test(value || '')) {
+    value = crypto.randomUUID().replaceAll('-', '');
+    sessionStorage.setItem(storageKey, value);
   }
 
-  return data;
+  return value;
 }
 
-function input(
+function clearId(type) {
+  sessionStorage.removeItem(
+    'smart-campus.admin.' + uid + '.' + type
+  );
+}
+
+const nameOf = id =>
+  state.users.find(user => user.id === id)?.name ||
+  'Account unavailable';
+
+const classOf = id =>
+  state.classes.find(classroom => classroom.id === id);
+
+const number = value =>
+  Number(value).toLocaleString('en-GB', {
+    maximumFractionDigits: 2
+  });
+
+const percentage = value =>
+  value == null ? '—' : number(value) + '%';
+
+function badge(text, tone = 'neutral') {
+  return `<span class="badge ${tone}">${h(text)}</span>`;
+}
+
+function button(
+  text,
+  action,
+  id = '',
+  danger = false
+) {
+  return `
+    <button
+      type="button"
+      class="${danger ? 'danger' : 'secondary'}"
+      data-action="${action}"
+      data-id="${h(id)}"
+    >${h(text)}</button>
+  `;
+}
+
+function field(
   label,
   name,
-  value = "",
-  type = "text",
-  required = true,
-  maximum = 150
+  value = '',
+  type = 'text',
+  extra = ''
 ) {
   return `
     <label>
       ${h(label)}
       <input
-        name="${h(name)}"
-        type="${h(type)}"
+        name="${name}"
+        type="${type}"
         value="${h(value)}"
-        maxlength="${maximum}"
-        ${required ? "required" : ""}
-        ${type === "password"
-          ? 'minlength="8" autocomplete="new-password"'
-          : ""}
+        ${extra}
       >
     </label>
   `;
@@ -289,107 +371,66 @@ function select(
   label,
   name,
   items,
-  value = "",
-  required = true
+  value = '',
+  required = false
 ) {
   return `
     <label>
       ${h(label)}
-      <select
-        name="${h(name)}"
-        ${required ? "required" : ""}
-      >
+      <select name="${name}" ${required ? 'required' : ''}>
         <option value="">Select…</option>
-
         ${items.map(([id, text]) => `
           <option
             value="${h(id)}"
-            ${id === value ? "selected" : ""}
-          >
-            ${h(text)}
-          </option>
-        `).join("")}
+            ${id === value ? 'selected' : ''}
+          >${h(text)}</option>
+        `).join('')}
       </select>
     </label>
   `;
 }
 
-function textarea(
-  label,
-  name,
-  value = "",
-  maximum = 5000,
-  required = false
+function panel(
+  title,
+  body,
+  copy = '',
+  extra = ''
 ) {
   return `
-    <label class="full">
-      ${h(label)}
-      <textarea
-        name="${h(name)}"
-        maxlength="${maximum}"
-        rows="4"
-        ${required ? "required" : ""}
-      >${h(value)}</textarea>
-    </label>
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <h2>${h(title)}</h2>
+          ${copy ? `<p>${h(copy)}</p>` : ''}
+        </div>
+        ${extra}
+      </div>
+      ${body}
+    </section>
   `;
 }
 
-function button(
-  text,
-  action,
-  id = "",
-  kind = "secondary"
-) {
+function table(head, rows) {
   return `
-    <button
-      type="button"
-      class="${kind}"
-      data-action="${action}"
-      data-id="${h(id)}"
+    <div
+      class="table-wrap"
+      tabindex="0"
+      role="region"
+      aria-label="Scrollable data table"
     >
-      ${h(text)}
-    </button>
-  `;
-}
-
-function who(uid) {
-  return state.users.find(user => user.id === uid)?.name ||
-    "Account unavailable";
-}
-
-function className(id) {
-  const classroom = state.classes.find(item => item.id === id);
-
-  return classroom
-    ? `${classroom.code} · ${classroom.name}`
-    : "Class unavailable";
-}
-
-function badge(active) {
-  return `
-    <span class="badge ${active ? "" : "off"}">
-      ${active ? "Active" : "Disabled"}
-    </span>
-  `;
-}
-
-function table(headings, rows) {
-  return `
-    <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            ${headings.map(text =>
+            ${head.map(text =>
               `<th scope="col">${h(text)}</th>`
-            ).join("")}
+            ).join('')}
           </tr>
         </thead>
-
         <tbody>
-          ${rows.join("") || `
+          ${rows.join('') || `
             <tr>
-              <td colspan="${headings.length}" class="empty">
-                No records yet.
+              <td colspan="${head.length}" class="empty-state">
+                No records to display.
               </td>
             </tr>
           `}
@@ -399,1120 +440,1878 @@ function table(headings, rows) {
   `;
 }
 
-function searchBox(placeholder = "Type to filter…") {
+function metrics(items) {
   return `
-    <label class="search">
-      Search
-      <input
-        id="directory-search"
-        type="search"
-        placeholder="${h(placeholder)}"
-      >
-    </label>
-
-    <p id="search-empty" class="empty" hidden>
-      No matching records.
-    </p>
+    <div class="metrics">
+      ${items.map(([label, value]) => `
+        <article class="metric">
+          <span>${h(label)}</span>
+          <strong>${h(value)}</strong>
+        </article>
+      `).join('')}
+    </div>
   `;
 }
 
-function resetButton(type) {
-  return button("Cancel editing", "cancel", type);
+function termList() {
+  return [
+    ...new Set([
+      ...state.classes.map(classroom => classroom.semester),
+      ...state.users.map(user => user.semester)
+    ].filter(Boolean))
+  ].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true })
+  );
 }
 
-function render() {
-  if (!ready) return;
+function dateTime(value) {
+  if (value == null) return '—';
 
-  const requested = location.hash.slice(1);
+  const seconds = value?.seconds ?? value?._seconds;
+  const parsed = new Date(
+    seconds != null ? seconds * 1000 : value
+  );
 
-  page = Object.hasOwn(labels, requested)
-    ? requested
-    : "dashboard";
+  return Number.isFinite(parsed.getTime())
+    ? new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(parsed)
+    : '—';
+}
 
-  $("page-title").textContent = labels[page];
-  $("page-date").textContent = campusDate();
-
-  document.querySelectorAll("nav a").forEach(link => {
-    const active = link.hash === "#" + page;
-
-    link.classList.toggle("active", active);
-
-    if (active) {
-      link.setAttribute("aria-current", "page");
-    } else {
-      link.removeAttribute("aria-current");
-    }
-  });
-
-  const renderers = {
-    dashboard,
-    teachers: () => accounts("teacher"),
-    students: () => accounts("student"),
-    classes: classesPage,
-    notices: noticesPage,
-    profile: profilePage
-  };
-
-  $("content").innerHTML = renderers[page]();
-
-  connectSpecialInputs();
+function noticeCards(items) {
+  return items.map(notice => `
+    <details class="notice-card">
+      <summary>${h(notice.title)}</summary>
+      <small>${h(notice.author_name || 'Campus')}</small>
+      <div class="notice-body">${h(notice.body)}</div>
+    </details>
+  `).join('') || '<p class="empty-state">No notices yet.</p>';
 }
 
 function dashboard() {
-  const { totals, attendance, date } = state.overview;
+  const overview = state.overview;
+  const attendance = overview.attendance;
 
-  return `
-    <section class="welcome">
-      <span class="eyebrow">CAMPUS OVERVIEW</span>
-      <h1>Welcome, ${h(state.profile.name)}</h1>
-      <p>
-        Manage your campus accounts, classes and announcements.
-      </p>
-    </section>
+  return metrics(
+    Object.entries(overview.totals).map(
+      ([name, value]) => [labels[name] || name, value]
+    )
+  ) +
 
-    <div class="stats">
-      ${Object.entries(totals).map(([name, value]) => `
-        <a class="stat" href="#${name}">
-          <span>${h(labels[name] || name)}</span>
-          <strong>${h(value)}</strong>
+  panel(
+    'Attendance · ' + overview.date,
+
+    metrics([
+      ['Teacher check-ins', attendance.teacher_checkins],
+      ['Sessions', attendance.sessions],
+      ['Present records', attendance.Present],
+      ['Late records', attendance.Late],
+      ['Absent records', attendance.Absent],
+      ['Excused records', attendance.Excused]
+    ]) +
+
+    `<p class="info-note">
+      Student figures count saved attendance records,
+      not unique people. Open Academic Reports for student totals.
+    </p>`
+  ) +
+
+  panel(
+    'Schedule checks',
+
+    state.conflicts.length
+      ? `
+        <p class="warning-note">
+          ${state.conflicts.length} existing conflict(s) need attention.
+        </p>
+        <a class="button secondary" href="#classes">
+          Review conflicts →
         </a>
-      `).join("")}
-    </div>
+      `
+      : `
+        <p class="info-note">
+          No conflicts found in the current active timetable.
+        </p>
+      `
+  ) +
 
-    <section class="card">
-      <h2>Attendance · ${h(date)}</h2>
-
-      <div class="stats small">
-        <div class="stat">
-          <span>Teacher check-ins</span>
-          <strong>${attendance.teacher_checkins}</strong>
-        </div>
-
-        <div class="stat">
-          <span>Student present records</span>
-          <strong>${attendance.student_present}</strong>
-        </div>
-
-        <div class="stat">
-          <span>Student absent records</span>
-          <strong>${attendance.student_absent}</strong>
-        </div>
-      </div>
-
-      <p class="muted">
-        Counts reflect saved records for this date.
-        Attendance entry will be connected with
-        the Teacher and Student workspaces.
-      </p>
-    </section>
-
-    <section class="card">
-      <h2>Recent notices</h2>
-
-      ${state.overview.recent_notices.map(notice => `
-        <article class="notice">
-          <h3>${h(notice.title)}</h3>
-          <p class="pre">${h(notice.body)}</p>
-        </article>
-      `).join("") ||
-        '<p class="empty">No notices published yet.</p>'}
-    </section>
-  `;
+  panel(
+    'Latest notices',
+    noticeCards(overview.recent_notices)
+  );
 }
 
 function accounts(role) {
-  const person = edits[role];
-  const teacher = role === "teacher";
-  const title = teacher ? "Teacher" : "Student";
+  const edit = edits[role];
+  const isStudent = role === 'student';
 
-  const users = state.users.filter(user => user.role === role);
+  const users = state.users.filter(
+    user => user.role === role
+  );
 
-  const placeholder = teacher
-    ? "Teacher ID, name, email or department"
-    : "Semester, Student ID, name, email, program or department";
-
-  const rows = users.map(user => {
-    const search = [
-      user.student_no,
-      user.teacher_no,
+  const visible = users.filter(user =>
+    [
       user.name,
-      user.semester,
       user.email,
-      user.department,
-      user.program,
-      user.phone,
-      user.designation
+      user[role + '_no'],
+      user.semester,
+      user.department
     ]
-      .filter(Boolean)
-      .join(" ")
-      .normalize("NFKC")
-      .toLowerCase();
+      .join(' ')
+      .toLowerCase()
+      .includes(directorySearch.toLowerCase())
+  );
 
-    const actions = user.provisioning === "pending"
-      ? '<span class="muted">Retry the original creation form with the same values.</span>'
-      : button("Edit", "edit-" + role, user.id) +
-        button(
-          user.active ? "Disable" : "Enable",
-          "status-" + role,
-          user.id
-        ) +
-        button("Reset password", "password-" + role, user.id);
+  return `
+    <details class="panel" ${edit ? 'open' : ''}>
+      <summary>
+        ${edit ? 'Edit ' + role : '＋ Create ' + role}
+      </summary>
+
+      <form
+        data-kind="account"
+        data-role="${role}"
+        data-id="${h(edit?.id || '')}"
+      >
+        <div class="form-grid">
+          ${field(
+            isStudent ? 'Student ID' : 'Teacher ID',
+            role + '_no',
+            edit?.[role + '_no'],
+            'text',
+            'required maxlength="80"'
+          )}
+
+          ${field(
+            'Full name',
+            'name',
+            edit?.name,
+            'text',
+            'required maxlength="100"'
+          )}
+
+          ${field(
+            'Email',
+            'email',
+            edit?.email,
+            'email',
+            'required maxlength="254"'
+          )}
+
+          ${field(
+            'Department',
+            'department',
+            edit?.department,
+            'text',
+            'maxlength="150"'
+          )}
+
+          ${field(
+            'Phone',
+            'phone',
+            edit?.phone,
+            'tel',
+            'maxlength="150"'
+          )}
+
+          ${
+            isStudent
+              ? field(
+                  'Program',
+                  'program',
+                  edit?.program,
+                  'text',
+                  'maxlength="150"'
+                ) +
+                select(
+                  'Current semester',
+                  'semester',
+                  termList().map(term => [term, term]),
+                  edit?.semester
+                )
+              : field(
+                  'Designation',
+                  'designation',
+                  edit?.designation,
+                  'text',
+                  'maxlength="150"'
+                )
+          }
+
+          ${
+            edit
+              ? select(
+                  'Account status',
+                  'active',
+                  [['1', 'Active'], ['0', 'Disabled']],
+                  edit.active ? '1' : '0',
+                  true
+                )
+              : field(
+                  'Initial password',
+                  'new_password',
+                  '',
+                  'password',
+                  'required minlength="8" maxlength="128" autocomplete="new-password"'
+                ) +
+                field(
+                  'Confirm password',
+                  'confirm_password',
+                  '',
+                  'password',
+                  'required minlength="8" maxlength="128" autocomplete="new-password"'
+                )
+          }
+        </div>
+
+        ${
+          isStudent
+            ? `
+              <p class="info-note">
+                Semester choices come from Class Setup and existing
+                student profiles. Create the class semester first
+                when adding a new term.
+              </p>
+            `
+            : ''
+        }
+
+        <div class="form-footer">
+          <button type="submit">
+            ${edit ? 'Save changes' : 'Create account'}
+          </button>
+
+          ${edit ? button('Cancel', 'cancel', role) : ''}
+        </div>
+      </form>
+    </details>
+  ` +
+
+  panel(
+    'All ' + role + 's',
+
+    `
+      <form class="filter-form" data-kind="directory-search">
+        ${field(
+          'Search ID, name, email or semester',
+          'search',
+          directorySearch
+        )}
+        <button type="submit">Search</button>
+      </form>
+    ` +
+
+    table(
+      [
+        isStudent ? 'Student ID' : 'Teacher ID',
+        'Name',
+        'Email',
+        isStudent ? 'Current semester' : 'Department',
+        'Status',
+        'Actions'
+      ],
+
+      visible.map(user => `
+        <tr>
+          <td>${h(user[role + '_no'] || '—')}</td>
+          <td><strong>${h(user.name)}</strong></td>
+          <td>${h(user.email)}</td>
+          <td>${h(isStudent ? user.semester : user.department)}</td>
+
+          <td>
+            ${badge(
+              user.provisioning === 'pending'
+                ? 'Provisioning'
+                : user.active
+                  ? 'Active'
+                  : 'Disabled',
+
+              user.active ? 'present' : 'neutral'
+            )}
+          </td>
+
+          <td class="actions">
+            ${
+              user.provisioning === 'pending'
+                ? '<small>Retry the original creation request.</small>'
+                : button('Edit', 'edit-' + role, user.id) +
+                  button(
+                    user.active ? 'Disable' : 'Enable',
+                    'status-' + role,
+                    user.id
+                  ) +
+                  button(
+                    'Reset password',
+                    'password-' + role,
+                    user.id
+                  ) +
+                  (
+                    isStudent
+                      ? button('Academic report', 'report', user.id)
+                      : button('Classes', 'teacher-classes', user.id)
+                  )
+            }
+          </td>
+        </tr>
+      `)
+    ),
+
+    users.length + ' accounts'
+  ) +
+
+  (isStudent ? '' : teacherAttendance());
+}
+
+function teacherAttendance() {
+  const month = work?.month || today().slice(0, 7);
+
+  const records = (work?.records || []).filter(record =>
+    !work?.teacher ||
+    record.teacher_id === work.teacher
+  );
+
+  const rows = records.map(record => {
+    const checkIn =
+      record.check_in?.seconds ??
+      record.check_in?._seconds;
+
+    const checkOut =
+      record.check_out?.seconds ??
+      record.check_out?._seconds;
+
+    const minutes =
+      checkIn != null && checkOut != null
+        ? Math.max(0, Math.floor((checkOut - checkIn) / 60))
+        : null;
 
     return `
-      <tr data-search="${h(search)}">
+      <tr>
+        <td>${h(record.work_date)}</td>
+        <td>${h(nameOf(record.teacher_id))}</td>
+        <td>${h(dateTime(record.check_in))}</td>
+        <td>${h(dateTime(record.check_out))}</td>
         <td>
-          <span class="directory-id">
-            ${h(user[role + "_no"] || "—")}
-          </span>
-        </td>
-
-        <td>
-          <div class="directory-person">
-            <span class="directory-avatar">
-              ${h(
-                (user.name || title).slice(0, 1).toUpperCase()
-              )}
-            </span>
-
-            <div>
-              <strong>${h(user.name)}</strong>
-              <small>
-                ${h(user.designation || user.program || title)}
-              </small>
-            </div>
-          </div>
-        </td>
-
-        ${teacher ? "" : `
-          <td>
-            <span class="semester-tag">
-              ${h(user.semester || "—")}
-            </span>
-          </td>
-        `}
-
-        <td>${h(user.email)}</td>
-        <td>${h(user.department || "—")}</td>
-
-        <td>
-          ${user.provisioning === "pending"
-            ? '<span class="badge off">Creation incomplete</span>'
-            : badge(user.active)}
-        </td>
-
-        <td>
-          <div class="row-actions">${actions}</div>
+          ${
+            minutes == null
+              ? '—'
+              : Math.floor(minutes / 60) +
+                'h ' +
+                minutes % 60 +
+                'm'
+          }
         </td>
       </tr>
     `;
   });
 
-  return `
-    <div class="directory-heading">
-      <div>
-        <span class="eyebrow">
-          ${teacher ? "TEACHING TEAM" : "STUDENT DIRECTORY"}
-        </span>
+  return panel(
+    'Monthly teacher attendance',
 
-        <h1>${title} Details</h1>
+    `
+      <form data-kind="teacher-attendance" class="filter-form">
+        ${field('Month', 'month', month, 'month', 'required')}
 
-        <p>
-          ${teacher
-            ? "Manage your teaching team and account access."
-            : "Find students by semester, ID, name and campus details."}
-        </p>
-      </div>
+        ${select(
+          'Teacher (blank = all)',
+          'teacher_id',
 
-      <div class="directory-total">
-        <strong>${users.length}</strong>
-        <span>Total ${role}s</span>
-      </div>
-    </div>
+          state.users
+            .filter(user => user.role === 'teacher')
+            .map(user => [user.id, user.name]),
 
-    <details class="card" ${person ? "open" : ""}>
-      <summary>
-        ${person ? "Edit " + title : "＋ Add " + role}
-      </summary>
-
-      <form
-        id="account-form"
-        data-role="${role}"
-        data-id="${h(person?.id || "")}"
-      >
-        <div class="fields">
-          ${input(
-            title + " ID",
-            role + "_no",
-            person?.[role + "_no"] || "",
-            "text",
-            true,
-            80
-          )}
-
-          ${input(
-            "Full name", "name",
-            person?.name || "",
-            "text", true, 100
-          )}
-
-          ${input(
-            "Email address", "email",
-            person?.email || "",
-            "email", true, 254
-          )}
-
-          ${input(
-            "Department", "department",
-            person?.department || "",
-            "text", false
-          )}
-
-          ${input(
-            "Phone", "phone",
-            person?.phone || "",
-            "tel", false
-          )}
-
-          ${teacher
-            ? input(
-                "Designation", "designation",
-                person?.designation || "",
-                "text", false
-              )
-            : input(
-                "Program", "program",
-                person?.program || "",
-                "text", false
-              ) +
-              input(
-                "Semester", "semester",
-                person?.semester || "",
-                "text", false, 80
-              )}
-
-          ${person
-            ? select(
-                "Account status",
-                "active",
-                [["1", "Active"], ["0", "Disabled"]],
-                person.active ? "1" : "0"
-              )
-            : input(
-                "Initial password", "new_password",
-                "", "password", true, 128
-              ) +
-              input(
-                "Confirm password", "confirm_password",
-                "", "password", true, 128
-              )}
-        </div>
-
-        <div class="actions">
-          <button type="submit">
-            ${person ? "Save changes" : "Create " + role} →
-          </button>
-
-          ${person ? resetButton(role) : ""}
-        </div>
-      </form>
-    </details>
-
-    <section class="card directory-card">
-      <div class="heading">
-        <h2>All ${role}s</h2>
-        ${searchBox(placeholder)}
-      </div>
-
-      ${table(
-        teacher
-          ? [
-              "Teacher ID",
-              "Teacher name",
-              "Email",
-              "Department",
-              "Status",
-              "Actions"
-            ]
-          : [
-              "Student ID",
-              "Student name",
-              "Semester",
-              "Email",
-              "Department",
-              "Status",
-              "Actions"
-            ],
-        rows
-      )}
-    </section>
-
-    <dialog id="password-dialog">
-      <form id="reset-password-form" data-role="${role}">
-        <h2>Reset ${role} password</h2>
-
-        <p id="password-person"></p>
-        <input type="hidden" name="uid">
-
-        ${input(
-          "New password", "new_password",
-          "", "password", true, 128
+          work?.teacher || ''
         )}
 
-        ${input(
-          "Confirm password", "confirm_password",
-          "", "password", true, 128
-        )}
-
-        <div class="actions">
-          <button type="submit">Reset password</button>
-          ${button("Cancel", "close-password")}
-        </div>
+        <button type="submit">View attendance</button>
       </form>
-    </dialog>
+    ` +
 
-    ${teacher ? `
-      <section class="card">
-        <h2>Teacher attendance</h2>
-        <a href="./teachers.html">
-          Open monthly teacher attendance →
-        </a>
-      </section>
-    ` : ""}
-  `;
+    (
+      work
+        ? table(
+            ['Date', 'Teacher', 'Check-in', 'Check-out', 'Duration'],
+            rows
+          )
+        : `
+          <p class="empty-state">
+            Select a month to load saved work attendance.
+          </p>
+        `
+    )
+  );
 }
 
-function slotRow(
-  slot = {
-    day: 1,
-    start: "09:00",
-    end: "10:00",
-    room: ""
-  }
-) {
+function slot(value = {
+  day: 0,
+  start: '09:00',
+  end: '10:00',
+  room: ''
+}) {
   return `
     <div class="slot">
       ${select(
-        "Day",
-        "day",
-        dayNames.map((name, index) => [String(index), name]),
-        String(slot.day)
+        'Day',
+        'day',
+        days.map((name, index) => [String(index), name]),
+        String(value.day),
+        true
       )}
 
-      ${input("Start", "start", slot.start, "time")}
-      ${input("End", "end", slot.end, "time")}
-      ${input("Room", "room", slot.room, "text", false, 80)}
+      ${field('Start', 'start', value.start, 'time', 'required')}
+      ${field('End', 'end', value.end, 'time', 'required')}
 
-      ${button("Remove", "remove-slot")}
+      ${field(
+        'Room',
+        'room',
+        value.room,
+        'text',
+        'maxlength="80"'
+      )}
+
+      ${button('Remove', 'remove-slot')}
     </div>
   `;
 }
 
+function conflictsTable() {
+  return state.conflicts.length
+    ? table(
+        [
+          'Person',
+          'Date',
+          'First class',
+          'Time',
+          'Second class',
+          'Time'
+        ],
+
+        state.conflicts.map(conflict => `
+          <tr>
+            <td>
+              ${h(conflict.person_name)}
+              <small>${h(conflict.kind)}</small>
+            </td>
+            <td>${h(conflict.date)}</td>
+            <td>${h(conflict.name_a)}</td>
+            <td>${h(conflict.time_a)}</td>
+            <td>${h(conflict.name_b)}</td>
+            <td>${h(conflict.time_b)}</td>
+          </tr>
+        `)
+      )
+    : `
+      <p class="info-note">
+        No active schedule conflicts found.
+      </p>
+    `;
+}
+
 function classesPage() {
-  const classroom = edits.class;
+  const edit = edits.class;
+  const current = classOf(selectedClass);
 
-  const teachers = state.users
-    .filter(user =>
-      user.role === "teacher" &&
-      user.active &&
-      user.provisioning !== "pending"
-    )
-    .map(user => [user.id, user.name]);
-
-  const current = state.classes.find(
-    item => item.id === selectedClass
+  const enrolled = state.enrolments.filter(
+    enrolment => enrolment.class_id === selectedClass
   );
 
-  const enrolled = state.enrolments.filter(item =>
-    item.class_id === selectedClass &&
-    item.active !== false
+  const active = enrolled.filter(
+    enrolment => enrolment.active !== false
   );
 
-  const students = state.users.filter(user =>
-    user.role === "student" &&
+  const eligible = state.users.filter(user =>
+    user.role === 'student' &&
     user.active &&
-    user.provisioning !== "pending" &&
-    !enrolled.some(item => item.student_id === user.id)
+    user.provisioning !== 'pending' &&
+    !active.some(
+      enrolment => enrolment.student_id === user.id
+    )
   );
 
-  const classRows = state.classes.map(item => `
-    <tr data-search="${h([
-      item.code,
-      item.name,
-      item.semester,
-      who(item.teacher_id)
-    ].join(" ").toLowerCase())}">
-      <td>
-        <strong>${h(item.code)}</strong>
-        <br>
-        ${h(item.name)}
-        <br>
-        ${badge(item.active !== false)}
-      </td>
+  const visible = state.classes.filter(classroom =>
+    [
+      classroom.code,
+      classroom.name,
+      classroom.semester,
+      classroom.academic_session,
+      classroom.section,
+      nameOf(classroom.teacher_id)
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(classSearch.toLowerCase())
+  );
 
-      <td>${h(item.semester)}</td>
-      <td>${h(who(item.teacher_id))}</td>
+  return panel(
+    'Existing schedule conflicts',
+    conflictsTable(),
+    'Resolve these by changing future routines, teacher assignment or enrolments.'
+  ) +
 
-      <td>
-        ${(item.weekly_slots || []).map(slot =>
-          `${h(dayNames[slot.day])} ` +
-          `${h(slot.start)}–${h(slot.end)} ${h(slot.room)}`
-        ).join("<br>")}
-      </td>
+  `
+    <details class="panel" ${edit ? 'open' : ''}>
+      <summary>${edit ? 'Edit class' : '＋ Create class'}</summary>
 
-      <td>
-        ${state.enrolments.filter(enrolment =>
-          enrolment.class_id === item.id &&
-          enrolment.active !== false
-        ).length}
-      </td>
-
-      <td class="row-actions">
-        ${button("Edit", "edit-class", item.id)}
-        ${button("Students", "roster", item.id)}
-
-        ${button(
-          item.active === false ? "Restore" : "Archive",
-          "status-class",
-          item.id
-        )}
-      </td>
-    </tr>
-  `);
-
-  return `
-    <div class="heading">
-      <div>
-        <span class="eyebrow">COURSE DIRECTORY</span>
-        <h1>Class Setup</h1>
-        <p>
-          Assign teachers, weekly routines and student enrolments.
-        </p>
-      </div>
-    </div>
-
-    <section class="card">
-      <h2>${classroom ? "Edit class" : "Create class"}</h2>
-
-      <form
-        id="class-form"
-        data-id="${h(classroom?.id || "")}"
-      >
-        <div class="fields">
-          ${input(
-            "Unique class code", "code",
-            classroom?.code || "",
-            "text", true, 80
+      <form data-kind="class" data-id="${h(edit?.id || '')}">
+        <div class="form-grid">
+          ${field(
+            'Subject code',
+            'code',
+            edit?.code,
+            'text',
+            `required maxlength="80" ${edit ? 'readonly' : ''}`
           )}
 
-          ${input(
-            "Subject name", "name",
-            classroom?.name || ""
+          ${field(
+            'Subject name',
+            'name',
+            edit?.name,
+            'text',
+            'required maxlength="150"'
           )}
 
-          ${input(
-            "Semester", "semester",
-            classroom?.semester || "",
-            "text", true, 80
+          ${
+            edit
+              ? field(
+                  'Semester',
+                  'semester',
+                  edit.semester,
+                  'text',
+                  'required readonly'
+                )
+              : select(
+                  'Semester',
+                  'semester',
+                  [
+                    ...termList().map(term => [term, term]),
+                    ['__new', '＋ New semester']
+                  ],
+                  '',
+                  true
+                ) +
+                field(
+                  'New semester name (when New semester is selected)',
+                  'new_semester',
+                  '',
+                  'text',
+                  'maxlength="80"'
+                )
+          }
+
+          ${field(
+            'Academic session',
+            'academic_session',
+            edit?.academic_session,
+            'text',
+            `maxlength="80" ${edit ? 'readonly' : ''}`
+          )}
+
+          ${field(
+            'Section',
+            'section',
+            edit?.section,
+            'text',
+            `maxlength="80" ${edit ? 'readonly' : ''}`
           )}
 
           ${select(
-            "Assigned teacher", "teacher_id",
-            teachers,
-            classroom?.teacher_id || ""
+            'Assigned teacher',
+            'teacher_id',
+
+            state.users
+              .filter(user =>
+                user.role === 'teacher' &&
+                (user.active || user.id === edit?.teacher_id)
+              )
+              .map(user => [
+                user.id,
+                user.name + (user.active ? '' : ' (disabled)')
+              ]),
+
+            edit?.teacher_id,
+            true
+          )}
+
+          ${field(
+            'Class starts (optional)',
+            'start_date',
+            edit?.start_date,
+            'date'
+          )}
+
+          ${field(
+            'Class ends (optional)',
+            'end_date',
+            edit?.end_date,
+            'date'
+          )}
+
+          ${field(
+            'Assessment maximum',
+            'assessment_max',
+            edit?.assessment_max ?? 20,
+            'number',
+            'required min="0" max="10000" step="any"'
+          )}
+
+          ${field(
+            'Midterm maximum',
+            'mid_max',
+            edit?.mid_max ?? 30,
+            'number',
+            'required min="0" max="10000" step="any"'
+          )}
+
+          ${field(
+            'Final maximum',
+            'final_max',
+            edit?.final_max ?? 50,
+            'number',
+            'required min="0" max="10000" step="any"'
           )}
         </div>
+
+        <p class="info-note">
+          Use class dates to separate different teaching terms.
+          When dates are blank, the routine is treated as open-ended.
+          Subject code, semester, session and section are fixed after creation.
+        </p>
 
         <h3>Weekly routine</h3>
 
         <div id="slots">
-          ${(classroom?.weekly_slots || [undefined])
-            .map(slotRow).join("")}
+          ${(edit?.weekly_slots || [undefined]).map(slot).join('')}
         </div>
 
-        ${button("＋ Add time slot", "add-slot")}
+        ${button('＋ Add weekly slot', 'add-slot')}
 
-        <div class="actions">
-          <button type="submit">Save class →</button>
-          ${classroom ? resetButton("class") : ""}
+        <div class="form-footer">
+          <button type="submit">Save class</button>
+          ${edit ? button('Cancel', 'cancel', 'class') : ''}
         </div>
       </form>
-    </section>
+    </details>
+  ` +
 
-    <section class="card">
-      <div class="heading">
-        <h2>Saved classes</h2>
-        ${searchBox()}
-      </div>
+  panel(
+    'Saved classes',
 
-      ${table(
-        [
-          "Class",
-          "Semester",
-          "Teacher",
-          "Weekly routine",
-          "Students",
-          "Actions"
-        ],
-        classRows
-      )}
-    </section>
-
-    <section class="card" id="roster">
-      <h2>Student enrolment</h2>
-
-      <label>
-        Choose class
-
-        <select id="roster-class">
-          <option value="">Select…</option>
-
-          ${state.classes.map(item => `
-            <option
-              value="${h(item.id)}"
-              ${item.id === selectedClass ? "selected" : ""}
-            >
-              ${h(item.code + " · " + item.name)}
-              ${item.active === false ? " (archived)" : ""}
-            </option>
-          `).join("")}
-        </select>
-      </label>
-
-      ${current ? `
-        <h3>${h(className(current.id))}</h3>
-
-        ${current.active === false
-          ? `
-            <p class="muted">
-              Restore this class before adding students.
-            </p>
-          `
-          : `
-            <form
-              id="enrolment-form"
-              data-id="${h(current.id)}"
-            >
-              <div class="fields">
-                ${select(
-                  "Student",
-                  "student_id",
-                  students.map(user => [
-                    user.id,
-                    `${user.name} · ${user.student_no || user.email}`
-                  ])
-                )}
-              </div>
-
-              <button type="submit">Enrol student</button>
-            </form>
-          `}
-
-        ${table(
-          ["Student", "Student ID", "Action"],
-          enrolled.map(enrolment => `
-            <tr>
-              <td>${h(who(enrolment.student_id))}</td>
-
-              <td>
-                ${h(
-                  state.users.find(user =>
-                    user.id === enrolment.student_id
-                  )?.student_no || "—"
-                )}
-              </td>
-
-              <td>
-                ${button(
-                  "Remove enrolment",
-                  "unenrol",
-                  enrolment.student_id,
-                  "danger"
-                )}
-              </td>
-            </tr>
-          `)
+    `
+      <form data-kind="class-search" class="filter-form">
+        ${field(
+          'Search subject, semester or teacher',
+          'search',
+          classSearch
         )}
-      ` : `
-        <p class="empty">
-          Select a class to manage its students.
-        </p>
-      `}
-    </section>
-  `;
+        <button type="submit">Search</button>
+      </form>
+    ` +
+
+    table(
+      [
+        'Class',
+        'Semester / session',
+        'Teacher',
+        'Routine',
+        'Status',
+        'Actions'
+      ],
+
+      visible.map(classroom => `
+        <tr>
+          <td>
+            <strong>${h(classroom.code)}</strong>
+            ${h(classroom.name)}
+            <small>${h(classroom.section)}</small>
+          </td>
+
+          <td>
+            ${h(classroom.semester)}
+            <small>${h(classroom.academic_session)}</small>
+          </td>
+
+          <td>${h(nameOf(classroom.teacher_id))}</td>
+
+          <td>
+            ${(classroom.weekly_slots || []).map(value =>
+              `${h(days[value.day])} ${h(value.start)}–${h(value.end)}`
+            ).join('<br>')}
+          </td>
+
+          <td>
+            ${badge(
+              classroom.active === false ? 'Archived' : 'Active',
+              classroom.active === false ? 'neutral' : 'present'
+            )}
+          </td>
+
+          <td class="actions">
+            ${button('Edit', 'edit-class', classroom.id)}
+            ${button('Students', 'roster', classroom.id)}
+
+            ${button(
+              classroom.active === false ? 'Restore' : 'Archive',
+              'status-class',
+              classroom.id
+            )}
+          </td>
+        </tr>
+      `)
+    )
+  ) +
+
+  panel(
+    'Student enrolment',
+
+    select(
+      'Choose class',
+      'roster_class',
+
+      state.classes.map(classroom => [
+        classroom.id,
+
+        classroom.code +
+          ' — ' +
+          classroom.name +
+          ' · ' +
+          classroom.semester +
+          (classroom.active === false ? ' (archived)' : '')
+      ]),
+
+      selectedClass
+    ) +
+
+    (
+      current
+        ? `
+          <h3 class="roster-heading">${h(current.name)}</h3>
+
+          ${
+            current.active === false
+              ? `
+                <p class="info-note">
+                  Restore the class before adding students.
+                </p>
+              `
+              : `
+                <form
+                  data-kind="enrolment"
+                  data-id="${h(current.id)}"
+                  class="filter-form"
+                >
+                  ${select(
+                    'Student',
+                    'student_id',
+
+                    eligible.map(user => [
+                      user.id,
+                      (user.student_no || '—') + ' — ' + user.name
+                    ]),
+
+                    '',
+                    true
+                  )}
+
+                  ${field(
+                    'Joining date',
+                    'joined_on',
+                    today(),
+                    'date',
+                    `required max="${today()}"`
+                  )}
+
+                  <button type="submit">Enrol student</button>
+                </form>
+              `
+          }
+
+          ${table(
+            ['Student', 'ID', 'Joining date', 'Action'],
+
+            active.map(enrolment => `
+              <tr>
+                <td>${h(nameOf(enrolment.student_id))}</td>
+
+                <td>
+                  ${h(
+                    state.users.find(user =>
+                      user.id === enrolment.student_id
+                    )?.student_no || '—'
+                  )}
+                </td>
+
+                <td>
+                  ${h(
+                    enrolment.periods?.at(-1)?.from ||
+                    enrolment.joined_on ||
+                    '—'
+                  )}
+                </td>
+
+                <td>
+                  ${button(
+                    'Close enrolment',
+                    'unenrol',
+                    enrolment.student_id,
+                    true
+                  )}
+                </td>
+              </tr>
+            `)
+          )}
+
+          <details class="semester-record">
+            <summary>Enrolment history</summary>
+
+            ${table(
+              ['Student', 'Joined', 'Left', 'Status'],
+
+              enrolled.flatMap(enrolment =>
+                (enrolment.periods || []).map(period => `
+                  <tr>
+                    <td>${h(nameOf(enrolment.student_id))}</td>
+
+                    <td>
+                      ${h(period.from)}
+                      ${
+                        period.inferred
+                          ? '<small>Legacy dates</small>'
+                          : ''
+                      }
+                    </td>
+
+                    <td>${h(period.to || '—')}</td>
+                    <td>${badge(period.to ? 'Closed' : 'Current')}</td>
+                  </tr>
+                `)
+              )
+            )}
+          </details>
+        `
+        : `
+          <p class="empty-state">
+            Select a class to manage enrolments.
+          </p>
+        `
+    )
+  );
 }
 
-function noticeDate(value) {
-  const seconds = value?.seconds ?? value?._seconds;
+function courseResult(course) {
+  const keys = ['assessment', 'mid', 'final'];
 
-  const date = seconds != null
-    ? new Date(seconds * 1000)
-    : new Date(value);
+  const complete = keys.every(name =>
+    course[name] != null &&
+    course[name] !== '' &&
+    Number.isFinite(Number(course[name])) &&
+    Number(course[name]) >= 0 &&
+    Number(course[name]) <= Number(course[name + '_max'])
+  );
 
-  if (!Number.isFinite(date.getTime())) {
-    return "Date unavailable";
+  const maximum = keys.reduce(
+    (sum, name) => sum + Number(course[name + '_max']),
+    0
+  );
+
+  return {
+    complete: complete && maximum > 0,
+
+    earned: complete
+      ? keys.reduce(
+          (sum, name) => sum + Number(course[name]),
+          0
+        )
+      : null,
+
+    max: maximum
+  };
+}
+
+function resultSummary(classes) {
+  const results = classes
+    .map(courseResult)
+    .filter(result => result.complete);
+
+  const earned = results.reduce(
+    (sum, result) => sum + result.earned,
+    0
+  );
+
+  const maximum = results.reduce(
+    (sum, result) => sum + result.max,
+    0
+  );
+
+  return {
+    count: results.length,
+    total: classes.length,
+    earned,
+    max: maximum,
+    average: maximum ? earned * 100 / maximum : null,
+
+    complete:
+      classes.length > 0 &&
+      results.length === classes.length
+  };
+}
+
+function marksTable(classes) {
+  return table(
+    [
+      'Subject',
+      'Semester',
+      'Assessment',
+      'Midterm',
+      'Final',
+      'Total',
+      '%'
+    ],
+
+    classes.map(course => {
+      const result = courseResult(course);
+
+      return `
+        <tr>
+          <td>
+            <strong>${h(course.name)}</strong>
+            <small>
+              ${h(course.code)} ·
+              ${h(course.academic_session)} ·
+              ${h(course.section)}
+            </small>
+          </td>
+
+          <td>${h(course.semester)}</td>
+
+          ${['assessment', 'mid', 'final'].map(name => `
+            <td>
+              ${
+                course[name] == null
+                  ? '—'
+                  : h(number(course[name]))
+              }
+              / ${h(number(course[name + '_max']))}
+            </td>
+          `).join('')}
+
+          <td>
+            ${
+              result.complete
+                ? number(result.earned) + ' / ' + number(result.max)
+                : badge('Pending')
+            }
+          </td>
+
+          <td>
+            ${percentage(
+              result.complete
+                ? result.earned * 100 / result.max
+                : null
+            )}
+          </td>
+        </tr>
+      `;
+    })
+  );
+}
+
+function attendanceSummary(rows) {
+  const summary = {
+    Present: 0,
+    Late: 0,
+    Absent: 0,
+    Excused: 0,
+    'Not marked': 0
+  };
+
+  rows
+    .filter(row => row.counted)
+    .forEach(row => summary[row.status]++);
+
+  const total = Object.values(summary)
+    .reduce((sum, value) => sum + value, 0);
+
+  return {
+    ...summary,
+    total,
+    attended: summary.Present + summary.Late,
+    pending: rows.filter(row => !row.counted).length,
+
+    percentage: total
+      ? (summary.Present + summary.Late) * 100 / total
+      : null
+  };
+}
+
+function reportsPage() {
+  const students = state.users.filter(
+    user => user.role === 'student'
+  );
+
+  const body = `
+    <form data-kind="load-report" class="filter-form">
+      ${field(
+        'Find Student ID, name or email',
+        'student_search',
+        '',
+        'search',
+        'id="student-search"'
+      )}
+
+      ${select(
+        'Student',
+        'student_id',
+
+        students.map(user => [
+          user.id,
+          (user.student_no || '—') + ' — ' + user.name
+        ]),
+
+        report?.profile.id || '',
+        true
+      )}
+
+      <button type="submit">View academic report</button>
+    </form>
+  `;
+
+  if (!report) {
+    return panel(
+      'Student academic reports',
+      body,
+      'Select a student to view marks, semester averages and attendance.'
+    );
   }
 
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Shanghai",
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
+  const profile = report.profile;
+  const current = report.current_semester;
+
+  const terms = [
+    ...new Set(
+      report.classes.map(course => course.semester)
+    )
+  ].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true })
+  );
+
+  const previous = terms.filter(term =>
+    current &&
+    term !== current &&
+    term !== 'Semester not assigned' &&
+    resultSummary(
+      report.classes.filter(course => course.semester === term)
+    ).complete
+  );
+
+  const overall = resultSummary(
+    report.classes.filter(course =>
+      previous.includes(course.semester)
+    )
+  );
+
+  const running = report.classes.filter(
+    course => course.semester === current
+  );
+
+  const filteredClasses = report.classes.filter(course =>
+    (
+      !reportFilter.semester ||
+      course.semester === reportFilter.semester
+    ) &&
+    (
+      !reportFilter.class_id ||
+      course.id === reportFilter.class_id
+    )
+  );
+
+  const ids = new Set(
+    filteredClasses.map(course => course.id)
+  );
+
+  const rows = report.attendance.filter(session =>
+    ids.has(session.class_id) &&
+    (!reportFilter.from || session.lesson_date >= reportFilter.from) &&
+    (!reportFilter.to || session.lesson_date <= reportFilter.to)
+  );
+
+  const attendance = attendanceSummary(rows);
+
+  return panel(
+    'Student academic reports',
+    body
+  ) +
+
+  panel(
+    profile.name,
+
+    `
+      <p class="muted">
+        ${h(profile.student_no)} ·
+        ${h(profile.email)} ·
+        ${h(profile.department)} ·
+        Running: ${h(current || 'Not assigned')}
+      </p>
+    `
+  ) +
+
+  panel(
+    'Overall result',
+
+    metrics([
+      ['Completed earlier semesters', previous.length],
+      ['Fully graded subjects', overall.count],
+
+      [
+        'Earned / maximum',
+        overall.count
+          ? number(overall.earned) + ' / ' + number(overall.max)
+          : '—'
+      ],
+
+      ['Weighted average', percentage(overall.average)]
+    ]) +
+
+    `
+      <p class="info-note">
+        Only fully graded previous semesters are included.
+        Average = total earned ÷ total maximum × 100.
+        Running and incomplete semesters are excluded;
+        no GPA/CGPA is inferred.
+      </p>
+    `
+  ) +
+
+  panel(
+    'Running semester result',
+
+    current
+      ? marksTable(running)
+      : `
+        <p class="warning-note">
+          Assign the student’s current semester in Student Management.
+        </p>
+      `,
+
+    current || 'Not assigned'
+  ) +
+
+  panel(
+    'Semester history',
+
+    terms
+      .filter(term => term !== current)
+      .map(term => {
+        const classes = report.classes.filter(
+          course => course.semester === term
+        );
+
+        const summary = resultSummary(classes);
+
+        return `
+          <details class="semester-record">
+            <summary>
+              ${h(term)}
+              ${badge(
+                summary.complete
+                  ? percentage(summary.average)
+                  : 'In progress'
+              )}
+            </summary>
+
+            ${marksTable(classes)}
+          </details>
+        `;
+      })
+      .join('') ||
+
+      '<p class="empty-state">No previous semester records.</p>'
+  ) +
+
+  panel(
+    'Attendance filters',
+
+    `
+      <form data-kind="report-filter" class="filter-form">
+        ${select(
+          'Semester (blank = all)',
+          'semester',
+          terms.map(term => [term, term]),
+          reportFilter.semester
+        )}
+
+        ${select(
+          'Subject (blank = all)',
+          'class_id',
+
+          report.classes.map(course => [
+            course.id,
+            course.code + ' — ' + course.name + ' · ' + course.semester
+          ]),
+
+          reportFilter.class_id
+        )}
+
+        ${field('From', 'from', reportFilter.from, 'date')}
+
+        ${field(
+          'To',
+          'to',
+          reportFilter.to,
+          'date',
+          `max="${today()}"`
+        )}
+
+        <button type="submit">Apply</button>
+        ${button('Reset', 'reset-report')}
+      </form>
+    `
+  ) +
+
+  panel(
+    'Student attendance',
+
+    metrics([
+      ['Recorded classes', attendance.total],
+      ['Attended', attendance.attended],
+      ['Absent', attendance.Absent],
+      ['Excused', attendance.Excused],
+      ['Not marked', attendance['Not marked']],
+      ['Attendance', percentage(attendance.percentage)]
+    ]) +
+
+    `
+      <p class="info-note">
+        Present + Late count as attended.
+        Excused and Not marked remain in the recorded-class total.
+        ${attendance.pending} past sessions awaiting attendance are excluded.
+      </p>
+    ` +
+
+    table(
+      [
+        'Subject',
+        'Recorded',
+        'Attended',
+        'Absent',
+        'Excused',
+        'Not marked',
+        '%'
+      ],
+
+      filteredClasses.map(course => {
+        const summary = attendanceSummary(
+          rows.filter(row => row.class_id === course.id)
+        );
+
+        return `
+          <tr>
+            <td>
+              <strong>${h(course.name)}</strong>
+              <small>${h(course.semester)} · ${h(course.code)}</small>
+            </td>
+            <td>${summary.total}</td>
+            <td>${summary.attended}</td>
+            <td>${summary.Absent}</td>
+            <td>${summary.Excused}</td>
+            <td>${summary['Not marked']}</td>
+            <td>${percentage(summary.percentage)}</td>
+          </tr>
+        `;
+      })
+    )
+  ) +
+
+  panel(
+    'Dated class records',
+
+    table(
+      ['Date', 'Subject', 'Time', 'Status'],
+
+      rows.map(session => `
+        <tr>
+          <td>${h(session.lesson_date)}</td>
+
+          <td>
+            ${h(session.name)}
+            <small>
+              ${h(session.semester)} · ${h(session.code)}
+            </small>
+          </td>
+
+          <td>
+            ${h(session.start_time)}–${h(session.end_time)}
+          </td>
+
+          <td>
+            ${badge(
+              session.counted
+                ? session.status
+                : 'Awaiting attendance',
+
+              session.status === 'Present'
+                ? 'present'
+                : session.status === 'Absent'
+                  ? 'absent'
+                  : 'neutral'
+            )}
+          </td>
+        </tr>
+      `)
+    )
+  );
 }
 
 function noticesPage() {
-  const notice = edits.notice;
-  const received = state.received || [];
+  const edit = edits.notice;
 
-  const incoming = received.map(item => {
-    const teacher = state.users.find(
-      user => user.id === item.created_by
-    );
+  return panel(
+    edit ? 'Edit notice' : 'Publish notice',
 
-    const search = [
-      item.title,
-      item.body,
-      item.author_name,
-      teacher?.teacher_no
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .normalize("NFKC")
-      .toLowerCase();
-
-    return `
-      <article
-        class="notice received-notice"
-        data-search="${h(search)}"
-      >
-        <div class="notice-meta">
-          <span class="badge">From teacher</span>
-          <span>${h(noticeDate(item.created_at))}</span>
-        </div>
-
-        <h3>${h(item.title)}</h3>
-
-        <p class="notice-sender">
-          ${h(item.author_name || teacher?.name || "Teacher")}
-          ${teacher?.teacher_no
-            ? " · " + h(teacher.teacher_no)
-            : ""}
-        </p>
-
-        <p class="pre">${h(item.body)}</p>
-      </article>
-    `;
-  }).join("");
-
-  return `
-    <div class="heading">
-      <div>
-        <h1>Notices</h1>
-        <p>
-          Read teacher messages and manage campus announcements.
-        </p>
-      </div>
-
-      ${searchBox("Title, message, teacher name or Teacher ID")}
-    </div>
-
-    <section class="card">
-      <div class="heading">
-        <h2>Received from teachers</h2>
-        <span class="badge">${received.length} notices</span>
-      </div>
-
-      <p class="muted">
-        Messages teachers sent to Admin appear here.
-        Use Refresh above to load new notices.
-      </p>
-
-      ${incoming ||
-        '<p class="empty">No teacher notices received yet.</p>'}
-    </section>
-
-    <section class="card">
-      <h2>${notice ? "Edit notice" : "Publish notice"}</h2>
-
-      <form
-        id="notice-form"
-        data-id="${h(notice?.id || "")}"
-      >
-        <div class="fields">
-          ${input(
-            "Title", "title",
-            notice?.title || "",
-            "text", true, 140
+    `
+      <form data-kind="notice" data-id="${h(edit?.id || '')}">
+        <div class="form-grid">
+          ${field(
+            'Title',
+            'title',
+            edit?.title,
+            'text',
+            'required maxlength="140"'
           )}
 
           ${select(
-            "Audience",
-            "audience",
+            'Audience',
+            'audience',
+
             [
-              ["all", "All campus users"],
-              ["teachers", "All teachers"],
-              ["students", "All students"],
-              ["selected", "Selected people"]
+              ['all', 'Everyone'],
+              ['teachers', 'All teachers'],
+              ['students', 'All students'],
+              ['selected', 'Selected recipients']
             ],
-            notice?.audience || "all"
+
+            edit?.audience || 'all',
+            true
           )}
 
-          ${textarea(
-            "Message", "body",
-            notice?.body || "",
-            10000, true
-          )}
-
-          <label class="full" id="recipient-field">
+          <label class="full">
             Selected recipients
-            (Ctrl / Cmd to select several)
-
-            <select name="recipient_ids" multiple size="7">
-              ${state.users
-                .filter(user =>
-                  user.active &&
-                  user.provisioning !== "pending"
-                )
-                .map(user => `
-                  <option
-                    value="${h(user.id)}"
-                    ${notice?.recipient_ids?.includes(user.id)
-                      ? "selected"
-                      : ""}
-                  >
-                    ${h(
-                      `${user.name} · ${user.role} · ${user.email}`
-                    )}
-                  </option>
-                `).join("")}
+            <select name="recipient_ids" multiple size="6">
+              ${
+                state.users
+                  .filter(user =>
+                    user.active &&
+                    user.provisioning !== 'pending'
+                  )
+                  .map(user => `
+                    <option
+                      value="${h(user.id)}"
+                      ${
+                        edit?.recipient_ids?.includes(user.id)
+                          ? 'selected'
+                          : ''
+                      }
+                    >
+                      ${h(user.name)} ·
+                      ${h(user.role)} ·
+                      ${h(user.student_no || user.teacher_no || user.email)}
+                    </option>
+                  `)
+                  .join('')
+              }
             </select>
+            <small>Used only for Selected recipients.</small>
+          </label>
+
+          <label class="full">
+            Message
+            <textarea
+              name="body"
+              rows="6"
+              required
+              maxlength="10000"
+            >${h(edit?.body)}</textarea>
           </label>
         </div>
 
-        <div class="actions">
+        <div class="form-footer">
           <button type="submit">
-            ${notice ? "Save changes" : "Publish notice"} →
+            ${edit ? 'Save notice' : 'Publish notice'}
           </button>
 
-          ${notice ? resetButton("notice") : ""}
+          ${edit ? button('Cancel', 'cancel', 'notice') : ''}
         </div>
       </form>
-    </section>
+    `
+  ) +
 
-    <section class="card">
-      <h2>Published by Admin</h2>
+  panel(
+    'Published notices',
 
-      ${state.notices.map(item => `
-        <article
-          class="notice"
-          data-search="${h(
-            [item.title, item.body, item.audience]
-              .join(" ")
-              .normalize("NFKC")
-              .toLowerCase()
-          )}"
-        >
-          <span class="badge">
-            ${h(
-              item.audience === "selected"
-                ? `${item.recipient_ids.length} selected people`
-                : item.audience
-            )}
-          </span>
+    state.notices.map(notice => `
+      <article class="notice-card">
+        <h3>${h(notice.title)}</h3>
+        <small>${h(notice.audience)}</small>
+        <div class="notice-body">${h(notice.body)}</div>
 
-          <h3>${h(item.title)}</h3>
-          <p class="pre">${h(item.body)}</p>
+        <div class="actions">
+          ${button('Edit', 'edit-notice', notice.id)}
+          ${button('Remove', 'remove-notice', notice.id, true)}
+        </div>
+      </article>
+    `).join('') ||
 
-          <div class="actions">
-            ${button("Edit", "edit-notice", item.id)}
+    '<p class="empty-state">No published notices.</p>'
+  ) +
 
-            ${button(
-              "Remove", "remove-notice", item.id, "danger"
-            )}
-          </div>
-        </article>
-      `).join("") ||
-        '<p class="empty">No Admin notices published yet.</p>'}
-    </section>
-  `;
+  panel(
+    'Received teacher notices',
+    noticeCards(state.received),
+    'Received messages are read-only.'
+  );
 }
 
 function profilePage() {
   const profile = state.profile;
 
-  return `
-    <h1>Administrator profile</h1>
+  return panel(
+    'Account information',
 
-    <section class="card">
-      <h2>Account details</h2>
-      <p>${h(profile.email)} · Administrator</p>
+    `
+      <p class="muted">${h(profile.email)}</p>
 
-      <form id="profile-form">
-        <div class="fields">
-          ${input(
-            "Full name", "name",
+      <form data-kind="profile">
+        <div class="form-grid">
+          ${field(
+            'Full name',
+            'name',
             profile.name,
-            "text", true, 100
+            'text',
+            'required maxlength="100"'
           )}
 
-          ${input(
-            "Phone", "phone",
-            profile.phone || "",
-            "tel", false
+          ${field(
+            'Phone',
+            'phone',
+            profile.phone,
+            'tel',
+            'maxlength="150"'
           )}
 
-          ${input(
-            "Department", "department",
-            profile.department || "",
-            "text", false
-          )}
-        </div>
-
-        <div class="actions">
-          <button type="submit">Save profile →</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>Change your password</h2>
-
-      <p class="muted">
-        Confirm your current password.
-        After a successful change you will sign in again.
-      </p>
-
-      <form id="own-password-form">
-        <div class="fields">
-          ${input(
-            "Current password", "current_password",
-            "", "password", true, 128
-          )}
-
-          ${input(
-            "New password", "new_password",
-            "", "password", true, 128
-          )}
-
-          ${input(
-            "Confirm new password", "confirm_password",
-            "", "password", true, 128
+          ${field(
+            'Department',
+            'department',
+            profile.department,
+            'text',
+            'maxlength="150"'
           )}
         </div>
 
-        <div class="actions">
-          <button type="submit">Change password →</button>
+        <div class="form-footer">
+          <button type="submit">Save profile</button>
         </div>
       </form>
-    </section>
-  `;
+    `
+  ) +
+
+  panel(
+    'Change password',
+
+    `
+      <form data-kind="own-password">
+        <div class="form-grid">
+          ${field(
+            'Current password',
+            'current_password',
+            '',
+            'password',
+            'required autocomplete="current-password"'
+          )}
+
+          ${field(
+            'New password',
+            'new_password',
+            '',
+            'password',
+            'required minlength="8" maxlength="128" autocomplete="new-password"'
+          )}
+
+          ${field(
+            'Confirm password',
+            'confirm_password',
+            '',
+            'password',
+            'required minlength="8" maxlength="128" autocomplete="new-password"'
+          )}
+        </div>
+
+        <div class="form-footer">
+          <p>Sign in again after changing your password.</p>
+          <button type="submit">Change password</button>
+        </div>
+      </form>
+    `
+  );
 }
 
-function connectSpecialInputs() {
-  if (edits.class && $("class-form")) {
-    $("class-form").elements.code.readOnly = true;
+function render() {
+  if (!ready) return;
+
+  const [name, query = ''] =
+    location.hash.slice(1).split('?');
+
+  page = Object.hasOwn(labels, name)
+    ? name
+    : 'dashboard';
+
+  const params = new URLSearchParams(query);
+
+  if (page === 'teachers' && params.has('edit')) {
+    edits.teacher = state.users.find(user =>
+      user.role === 'teacher' &&
+      user.id === params.get('edit')
+    ) || null;
   }
 
-  const passwordForm = $("own-password-form");
+  $('page-title').textContent = labels[page];
+  $('page-date').textContent = today();
 
-  if (passwordForm) {
-    passwordForm.elements.current_password.autocomplete =
-      "current-password";
+  identity();
 
-    passwordForm.elements.current_password
-      .removeAttribute("minlength");
-  }
+  document.querySelectorAll('.tsb-nav a')
+    .forEach(link => {
+      const active = link.hash === '#' + page;
 
-  const noticeForm = $("notice-form");
+      link.classList.toggle('active', active);
 
-  if (noticeForm) {
-    const toggle = () => {
-      $("recipient-field").hidden =
-        noticeForm.elements.audience.value !== "selected";
-    };
-
-    noticeForm.elements.audience.addEventListener(
-      "change",
-      toggle
-    );
-
-    toggle();
-  }
-
-  $("roster-class")?.addEventListener("change", event => {
-    selectedClass = event.target.value;
-    render();
-    $("roster").scrollIntoView({ block: "start" });
-  });
-
-  $("directory-search")?.addEventListener("input", event => {
-    const terms = event.target.value
-      .normalize("NFKC")
-      .toLowerCase()
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
-
-    let count = 0;
-
-    document.querySelectorAll("[data-search]").forEach(row => {
-      const value = row.dataset.search
-        .normalize("NFKC")
-        .toLowerCase();
-
-      row.hidden = !terms.every(term => value.includes(term));
-
-      if (!row.hidden) count++;
+      if (active) {
+        link.setAttribute('aria-current', 'page');
+      } else {
+        link.removeAttribute('aria-current');
+      }
     });
 
-    $("search-empty").hidden =
-      count > 0 || terms.length === 0;
-  });
+  const pages = {
+    dashboard,
+    teachers: () => accounts('teacher'),
+    students: () => accounts('student'),
+    classes: classesPage,
+    reports: reportsPage,
+    notices: noticesPage,
+    profile: profilePage
+  };
+
+  $('content').innerHTML = `
+    <div class="page-intro">
+      <div>
+        <span class="eyebrow">CAMPUS ADMINISTRATION</span>
+        <h1>
+          ${
+            page === 'dashboard'
+              ? 'Welcome back, ' + h(state.profile.name) + '.'
+              : labels[page]
+          }
+        </h1>
+      </div>
+    </div>
+  ` + pages[page]();
+
+  if (busy) lock(true);
 }
 
-function requestId(type) {
-  const storageKey = "smart-campus.pending-" + type;
-  let value = sessionStorage.getItem(storageKey);
-
-  if (!/^[a-f0-9]{32}$/.test(value || "")) {
-    value = crypto.randomUUID().replaceAll("-", "");
-    sessionStorage.setItem(storageKey, value);
-  }
-
-  return value;
-}
-
-function validPassword(data) {
+function passwordValid(data) {
   if (
     data.new_password.length < 8 ||
-    data.new_password.length > 128
+    data.new_password.length > 128 ||
+    data.new_password !== data.confirm_password
   ) {
-    throw new Error(
-      "Use 8–128 characters for the password."
+    throw Error(
+      'Use matching passwords of 8–128 characters.'
     );
-  }
-
-  if (data.new_password !== data.confirm_password) {
-    throw new Error("Passwords do not match.");
   }
 }
 
-$("content").addEventListener("submit", async event => {
-  event.preventDefault();
+function closeModal() {
+  $('modal').close();
+}
 
+function openModal(body) {
+  $('modal').innerHTML = body;
+  $('modal').showModal();
+}
+
+async function loadReport(studentId) {
+  lock(true);
+
+  try {
+    report = await api(
+      '/student-reports/' + encodeURIComponent(studentId)
+    );
+
+    reportFilter = {
+      semester: '',
+      class_id: '',
+      from: '',
+      to: ''
+    };
+
+    location.hash = '#reports';
+
+    render();
+    message('');
+  } catch (error) {
+    message(error.message, true);
+  } finally {
+    lock(false);
+  }
+}
+
+document.addEventListener('submit', async event => {
+  const form = event.target;
+  const kind = form.dataset.kind;
+
+  if (!kind) return;
+
+  event.preventDefault();
   if (busy) return;
 
-  const form = event.target;
-  const data = values(form);
+  const data = Object.fromEntries(new FormData(form));
+
+  for (const name of Object.keys(data)) {
+    if (!name.includes('password')) {
+      data[name] = data[name].trim();
+    }
+  }
+
   const record = form.dataset.id;
 
   try {
-    if (form.id === "account-form") {
+    if (kind === 'directory-search') {
+      directorySearch = data.search;
+      render();
+      return;
+    }
+
+    if (kind === 'class-search') {
+      classSearch = data.search;
+      render();
+      return;
+    }
+
+    if (kind === 'account') {
       const role = form.dataset.role;
 
       if (record) {
-        data.active = data.active === "1";
+        data.active = data.active === '1';
 
         await mutate(
-          `/${role}s/${encodeURIComponent(record)}/account`,
+          '/' + role + 's/' + encodeURIComponent(record) + '/account',
           data,
-          () => {
-            edits[role] = null;
-          }
+          () => edits[role] = null
         );
       } else {
-        validPassword(data);
+        passwordValid(data);
         data.request_id = requestId(role);
 
-        await mutate("/" + role + "s", data, () => {
-          sessionStorage.removeItem(
-            "smart-campus.pending-" + role
-          );
-        });
+        await mutate(
+          '/' + role + 's',
+          data,
+          () => clearId(role)
+        );
       }
-    } else if (form.id === "reset-password-form") {
-      validPassword(data);
 
-      await mutate(
-        `/${form.dataset.role}s/${encodeURIComponent(data.uid)}/password`,
-        data,
-        () => {
-          $("password-dialog").close();
-        }
-      );
-    } else if (form.id === "class-form") {
+      return;
+    }
+
+    if (kind === 'class') {
+      if (data.semester === '__new') {
+        data.semester = data.new_semester;
+      }
+
+      delete data.new_semester;
+
       data.weekly_slots = [
-        ...document.querySelectorAll(".slot")
-      ].map(row => ({
-        day: Number(row.querySelector('[name="day"]').value),
-        start: row.querySelector('[name="start"]').value,
-        end: row.querySelector('[name="end"]').value,
-        room: row.querySelector('[name="room"]').value.trim()
+        ...document.querySelectorAll('.slot')
+      ].map(element => ({
+        day: Number(
+          element.querySelector('[name="day"]').value
+        ),
+
+        start:
+          element.querySelector('[name="start"]').value,
+
+        end:
+          element.querySelector('[name="end"]').value,
+
+        room:
+          element.querySelector('[name="room"]').value.trim()
       }));
 
       await mutate(
         record
-          ? `/classes/${encodeURIComponent(record)}/save`
-          : "/classes",
+          ? '/classes/' + encodeURIComponent(record) + '/save'
+          : '/classes',
+
         data,
-        () => {
-          edits.class = null;
-        }
+        () => edits.class = null
       );
-    } else if (form.id === "enrolment-form") {
+
+      return;
+    }
+
+    if (kind === 'enrolment') {
       await mutate(
-        `/classes/${encodeURIComponent(record)}/enrolments`,
+        '/classes/' + encodeURIComponent(record) + '/enrolments',
         data
       );
-    } else if (form.id === "notice-form") {
-      if (!record) {
-        data.request_id = requestId("notice");
-      }
+      return;
+    }
 
-      data.recipient_ids = [
-        ...form.elements.recipient_ids.selectedOptions
-      ].map(option => option.value);
+    if (kind === 'close-enrolment') {
+      await mutate(
+        '/classes/' +
+          encodeURIComponent(selectedClass) +
+          '/enrolments/' +
+          encodeURIComponent(record) +
+          '/remove',
+
+        data,
+        closeModal
+      );
+
+      return;
+    }
+
+    if (kind === 'reset-password') {
+      passwordValid(data);
+
+      await mutate(
+        '/' +
+          form.dataset.role +
+          's/' +
+          encodeURIComponent(record) +
+          '/password',
+
+        data,
+        closeModal
+      );
+
+      return;
+    }
+
+    if (kind === 'notice') {
+      data.recipient_ids =
+        new FormData(form).getAll('recipient_ids');
+
+      if (!record) {
+        data.request_id = requestId('notice');
+      }
 
       await mutate(
         record
-          ? `/notices/${encodeURIComponent(record)}/save`
-          : "/notices",
+          ? '/notices/' + encodeURIComponent(record) + '/save'
+          : '/notices',
+
         data,
+
         () => {
           edits.notice = null;
-          sessionStorage.removeItem(
-            "smart-campus.pending-notice"
-          );
+          clearId('notice');
         }
       );
-    } else if (form.id === "profile-form") {
-      await mutate("/profile", data);
-    } else if (form.id === "own-password-form") {
-      validPassword(data);
 
-      setBusy(true);
-      message("Updating password…");
+      return;
+    }
+
+    if (kind === 'report-filter') {
+      if (
+        data.from &&
+        data.to &&
+        data.from > data.to
+      ) {
+        throw Error(
+          'End date must be on or after start date.'
+        );
+      }
+
+      reportFilter = data;
+      render();
+      return;
+    }
+
+    if (kind === 'load-report') {
+      await loadReport(data.student_id);
+      return;
+    }
+
+    if (kind === 'teacher-attendance') {
+      lock(true);
+
+      try {
+        work = {
+          ...await api(
+            '/teacher-attendance?month=' +
+            encodeURIComponent(data.month)
+          ),
+
+          teacher: data.teacher_id
+        };
+
+        render();
+      } finally {
+        lock(false);
+      }
+
+      return;
+    }
+
+    if (kind === 'profile') {
+      lock(true);
+
+      try {
+        const result = await api('/profile', data);
+
+        state.profile = {
+          ...state.profile,
+          ...result.profile
+        };
+
+        identity();
+        render();
+        message(result.message);
+
+        if (auth.currentUser?.reload) {
+          auth.currentUser.reload().catch(() => {});
+        }
+      } finally {
+        lock(false);
+      }
+
+      return;
+    }
+
+    if (kind === 'own-password') {
+      passwordValid(data);
+      lock(true);
 
       try {
         const user = auth.currentUser;
 
-        await withDeadline(
-          reauthenticateWithCredential(
-            user,
-            EmailAuthProvider.credential(
-              user.email,
-              data.current_password
-            )
+        await reauthenticateWithCredential(
+          user,
+          EmailAuthProvider.credential(
+            user.email,
+            data.current_password
           )
         );
 
-        await withDeadline(
-          updatePassword(user, data.new_password)
-        );
-
+        await updatePassword(user, data.new_password);
         await signOut(auth);
-        location.replace("/login.html?role=admin");
+
+        location.replace('/login.html?role=admin');
       } finally {
-        setBusy(false);
+        lock(false);
       }
     }
   } catch (error) {
@@ -1520,220 +2319,363 @@ $("content").addEventListener("submit", async event => {
   }
 });
 
-$("content").addEventListener("click", async event => {
-  const target = event.target.closest("[data-action]");
+document.addEventListener('click', async event => {
+  const element = event.target.closest('[data-action]');
 
-  if (!target || busy) return;
+  if (!element || busy) return;
 
-  const action = target.dataset.action;
-  const uid = target.dataset.id;
+  const action = element.dataset.action;
+  const id = element.dataset.id;
 
-  if (action === "cancel") {
-    edits[uid] = null;
+  if (action === 'close-modal') {
+    closeModal();
+    return;
+  }
+
+  if (action === 'cancel') {
+    edits[id] = null;
+
+    if (location.hash.includes('?')) {
+      history.replaceState(null, '', '#' + page);
+    }
+
     render();
     return;
   }
 
-  if (action === "add-slot") {
-    if (document.querySelectorAll(".slot").length < 21) {
-      $("slots").insertAdjacentHTML("beforeend", slotRow());
-    }
-
-    return;
-  }
-
-  if (action === "remove-slot") {
-    if (document.querySelectorAll(".slot").length > 1) {
-      target.closest(".slot").remove();
-    } else {
-      message("Keep at least one weekly time slot.", true);
-    }
-
-    return;
-  }
-
-  if (action === "roster") {
-    selectedClass = uid;
-    render();
-    $("roster").scrollIntoView({ behavior: "smooth" });
-    return;
-  }
-
-  if (action === "close-password") {
-    $("password-dialog").close();
-    return;
-  }
-
-  if (action === "unenrol") {
-    if (confirm(
-      "Remove this enrolment? Previous records will remain."
-    )) {
-      await mutate(
-        `/classes/${encodeURIComponent(selectedClass)}/enrolments/${encodeURIComponent(uid)}/remove`,
-        {}
+  if (action === 'add-slot') {
+    if (document.querySelectorAll('.slot').length < 21) {
+      $('slots').insertAdjacentHTML(
+        'beforeend',
+        slot()
       );
     }
 
     return;
   }
 
-  for (const role of ["teacher", "student"]) {
-    const person = state.users.find(user =>
-      user.id === uid && user.role === role
-    );
-
-    if (action === "edit-" + role && person) {
-      edits[role] = person;
-      render();
-      $("account-form").scrollIntoView({
-        behavior: "smooth"
-      });
-      return;
+  if (action === 'remove-slot') {
+    if (document.querySelectorAll('.slot').length > 1) {
+      element.closest('.slot').remove();
+    } else {
+      message('Keep at least one routine slot.', true);
     }
 
-    if (action === "status-" + role && person) {
-      if (confirm(
-        `${person.active ? "Disable" : "Enable"} ${person.name}?`
-      )) {
-        await mutate(
-          `/${role}s/${encodeURIComponent(uid)}/status`,
-          { active: !person.active }
-        );
-      }
-
-      return;
-    }
-
-    if (action === "password-" + role && person) {
-      const form = $("reset-password-form");
-
-      form.reset();
-      form.elements.uid.value = uid;
-
-      $("password-person").textContent =
-        person.name + " · " + person.email;
-
-      $("password-dialog").showModal();
-      return;
-    }
+    return;
   }
 
-  for (const type of ["class", "notice"]) {
-    const collection =
-      type === "class" ? "classes" : type + "s";
+  if (action === 'roster') {
+    selectedClass = id;
+    render();
+    return;
+  }
 
-    const record = state[collection].find(
-      item => item.id === uid
+  if (action === 'reset-report') {
+    reportFilter = {
+      semester: '',
+      class_id: '',
+      from: '',
+      to: ''
+    };
+
+    render();
+    return;
+  }
+
+  if (action === 'report') {
+    await loadReport(id);
+    return;
+  }
+
+  if (action === 'teacher-classes') {
+    classSearch = nameOf(id);
+    location.hash = '#classes';
+    render();
+    return;
+  }
+
+  if (action === 'unenrol') {
+    openModal(`
+      <form data-kind="close-enrolment" data-id="${h(id)}">
+        <h2>Close enrolment</h2>
+        <p>${h(nameOf(id))}</p>
+
+        ${field(
+          'Leaving date',
+          'left_on',
+          today(),
+          'date',
+          `required max="${today()}"`
+        )}
+
+        <div class="actions">
+          <button type="submit">Close enrolment</button>
+          ${button('Cancel', 'close-modal')}
+        </div>
+      </form>
+    `);
+
+    return;
+  }
+
+  for (const role of ['teacher', 'student']) {
+    const user = state.users.find(item =>
+      item.id === id &&
+      item.role === role
     );
 
-    if (action === "edit-" + type && record) {
-      edits[type] = record;
+    if (!user) continue;
+
+    if (action === 'edit-' + role) {
+      edits[role] = user;
       render();
-
-      $(type + "-form").scrollIntoView({
-        behavior: "smooth"
-      });
-
-      return;
-    }
-
-    if (action === "remove-" + type && record) {
-      if (confirm(`Remove this ${type}?`)) {
-        await mutate(
-          `/${collection}/${encodeURIComponent(uid)}/remove`,
-          {}
-        );
-      }
-
       return;
     }
 
     if (
-      action === "status-class" &&
-      type === "class" &&
-      record
+      action === 'status-' + role &&
+      confirm(
+        (user.active ? 'Disable ' : 'Enable ') +
+        user.name +
+        '?'
+      )
     ) {
-      if (confirm(
-        `${record.active === false ? "Restore" : "Archive"} this class?`
-      )) {
-        await mutate(
-          `/classes/${encodeURIComponent(uid)}/status`,
-          { active: record.active === false }
-        );
-      }
+      await mutate(
+        '/' + role + 's/' + encodeURIComponent(id) + '/status',
+        { active: !user.active }
+      );
+
+      return;
+    }
+
+    if (action === 'password-' + role) {
+      openModal(`
+        <form
+          data-kind="reset-password"
+          data-role="${role}"
+          data-id="${h(id)}"
+        >
+          <h2>Reset password</h2>
+          <p>${h(user.name)}</p>
+
+          ${field(
+            'New password',
+            'new_password',
+            '',
+            'password',
+            'required minlength="8" maxlength="128" autocomplete="new-password"'
+          )}
+
+          ${field(
+            'Confirm password',
+            'confirm_password',
+            '',
+            'password',
+            'required minlength="8" maxlength="128" autocomplete="new-password"'
+          )}
+
+          <div class="actions">
+            <button type="submit">Reset password</button>
+            ${button('Cancel', 'close-modal')}
+          </div>
+        </form>
+      `);
 
       return;
     }
   }
-});
 
-window.addEventListener("hashchange", () => {
-  if (busy) {
-    message("Wait for the current save to finish.", true);
+  if (action === 'edit-class') {
+    edits.class = classOf(id);
+    render();
     return;
   }
 
-  message("");
-  render();
+  if (action === 'status-class') {
+    const classroom = classOf(id);
+
+    if (
+      classroom &&
+      confirm(
+        (
+          classroom.active === false
+            ? 'Restore'
+            : 'Archive'
+        ) + ' this class?'
+      )
+    ) {
+      await mutate(
+        '/classes/' + encodeURIComponent(id) + '/status',
+        { active: classroom.active === false }
+      );
+    }
+
+    return;
+  }
+
+  if (action === 'edit-notice') {
+    edits.notice = state.notices.find(
+      notice => notice.id === id
+    );
+
+    render();
+    return;
+  }
+
+  if (
+    action === 'remove-notice' &&
+    confirm('Remove this notice?')
+  ) {
+    await mutate(
+      '/notices/' + encodeURIComponent(id) + '/remove',
+      {}
+    );
+  }
 });
 
-$("refresh").addEventListener("click", async () => {
+document.addEventListener('change', event => {
+  if (
+    !busy &&
+    event.target.name === 'roster_class'
+  ) {
+    selectedClass = event.target.value;
+    render();
+  }
+});
+
+document.addEventListener('input', event => {
+  if (event.target.id !== 'student-search') return;
+
+  const query = event.target.value.toLowerCase();
+
+  const studentSelect = document.querySelector(
+    '[data-kind="load-report"] [name="student_id"]'
+  );
+
+  studentSelect.innerHTML =
+    '<option value="">Select…</option>' +
+
+    state.users
+      .filter(user =>
+        user.role === 'student' &&
+        [
+          user.name,
+          user.student_no,
+          user.email
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+      .map(user => `
+        <option value="${h(user.id)}">
+          ${h(user.student_no || '—')} — ${h(user.name)}
+        </option>
+      `)
+      .join('');
+});
+
+window.addEventListener('hashchange', () => {
+  if (!busy) {
+    message('');
+    render();
+  }
+});
+
+$('refresh').addEventListener('click', async () => {
   if (busy) return;
 
-  setBusy(true);
+  lock(true);
 
   try {
     await refresh();
+
+    if (report) {
+      report = await api(
+        '/student-reports/' +
+        encodeURIComponent(report.profile.id)
+      );
+    }
+
+    if (work) {
+      work = {
+        ...await api(
+          '/teacher-attendance?month=' + work.month
+        ),
+
+        teacher: work.teacher
+      };
+    }
+
     render();
-    message("Workspace refreshed.");
+    message('Workspace refreshed.');
   } catch (error) {
     message(error.message, true);
   } finally {
-    setBusy(false);
+    lock(false);
   }
 });
 
-$("logout").addEventListener("click", async () => {
+$('logout').addEventListener('click', async () => {
   if (busy) return;
+
+  lock(true);
 
   try {
     await signOut(auth);
+    location.replace('/login.html?role=admin');
   } catch (error) {
     message(error.message, true);
+  } finally {
+    lock(false);
   }
 });
 
-$("retry").addEventListener("click", () => {
+$('retry').addEventListener('click', () => {
   location.reload();
 });
 
 onAuthStateChanged(auth, async user => {
-  const version = ++authVersion;
+  const current = ++version;
 
   ready = false;
-  $("workspace").hidden = true;
-  $("loading").hidden = false;
+  $('workspace').hidden = true;
+  $('loading').hidden = false;
+
+  if (uid !== user?.uid) {
+    uid = user?.uid || '';
+
+    edits = {
+      teacher: null,
+      student: null,
+      class: null,
+      notice: null
+    };
+
+    report = null;
+    work = null;
+    selectedClass = '';
+  }
 
   if (!user) {
-    location.replace("/login.html?role=admin");
+    location.replace('/login.html?role=admin');
     return;
   }
 
   try {
-    $("loading-text").textContent =
-      "Checking administrator and loading campus data…";
-
     await refresh();
 
-    if (version !== authVersion) return;
+    if (current !== version) return;
 
     ready = true;
-    $("loading").hidden = true;
-    $("workspace").hidden = false;
+    $('loading').hidden = true;
+    $('workspace').hidden = false;
 
     render();
   } catch (error) {
-    $("loading-text").textContent = error.message;
-    $("retry").hidden = false;
+    if (current === version) {
+      $('loading-text').textContent = error.message;
+      $('retry').hidden = false;
+    }
   }
 });
