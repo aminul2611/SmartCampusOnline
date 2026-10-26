@@ -1,200 +1,237 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
+  <meta charset="utf-8">
 
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
 
-    <title>Sign in · Smart Campus</title>
+  <meta
+    name="theme-color"
+    content="#142840"
+    id="theme-color"
+  >
 
-    <link rel="stylesheet" href="./css/login.css">
+  <title>Sign in · Smart Campus</title>
+
+  <link
+    rel="stylesheet"
+    href="./css/login.css?v=6"
+  >
 </head>
 
-<body>
+<body data-role="admin">
+  <script>
+    const role = new URLSearchParams(location.search)
+      .get('role');
 
-<main class="login-shell">
+    if (['admin', 'teacher', 'student'].includes(role)) {
+      document.body.dataset.role = role;
+    }
+  </script>
 
-    <section class="intro">
+  <main class="login-shell">
+    <section class="intro" aria-label="About Smart Campus">
+      <a class="brand" href="./login.html">
+        <span class="logo">SC</span>
 
-        <a class="brand" href="./">
-            <span class="logo">SC</span>
+        <span>
+          <strong>Smart Campus</strong>
+          <small>Your campus, connected.</small>
+        </span>
+      </a>
 
-            <span>
-                Smart Campus
-                <small>Your campus, connected.</small>
-            </span>
-        </a>
+      <div class="intro-copy">
+        <span class="eyebrow">
+          ONE CAMPUS. EVERY CONNECTION.
+        </span>
 
-        <div>
-            <span class="eyebrow">
-                YOUR CAMPUS WORKSPACE
-            </span>
+        <h1>
+          Your campus.<br>
+          <span>One connected space.</span>
+        </h1>
 
-            <h1>
-                People.<br>
-                Classes.<br>
-                Connected.
-            </h1>
+        <p>
+          A clearer view of your classes,
+          attendance and academic progress.
+        </p>
 
-            <p>
-                One place for your classes, attendance,
-                results and campus updates.
-            </p>
+        <ul class="features">
+          <li>
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>Stay organised</strong>
+              <small>Classes and schedules in one place.</small>
+            </div>
+          </li>
 
-            <ul>
-                <li>✓ Organized classes and schedules</li>
-                <li>✓ Attendance and academic progress</li>
-                <li>✓ Notices that keep everyone connected</li>
-            </ul>
-        </div>
+          <li>
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>See your progress</strong>
+              <small>Attendance and academic results.</small>
+            </div>
+          </li>
 
-        <small>
-            Smart Campus · Developed by Md. Aminul Islam
-        </small>
+          <li>
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>Keep in touch</strong>
+              <small>Notices from your campus community.</small>
+            </div>
+          </li>
+        </ul>
+      </div>
 
+      <small class="intro-footer">
+        Smart Campus · Developed by Md. Aminul Islam
+      </small>
     </section>
 
-    <section class="login-panel">
+    <section
+      class="login-panel"
+      aria-labelledby="signin-title"
+    >
+      <div class="form-heading">
+        <span class="eyebrow">WELCOME BACK</span>
 
-        <div id="signin-section">
+        <span
+          class="workspace-tag"
+          id="workspace-label"
+        >
+          Admin workspace
+        </span>
+      </div>
 
-            <span class="eyebrow">WELCOME BACK</span>
+      <h2 id="signin-title">Sign in to your campus</h2>
 
-            <h2>Sign in</h2>
+      <p class="muted">
+        Choose your workspace and enter your account details.
+      </p>
 
-            <p class="muted">
-                Choose your workspace to continue.
-            </p>
+      <nav
+        class="role-tabs"
+        aria-label="Choose your workspace"
+      >
+        <button
+          type="button"
+          data-role="admin"
+          aria-pressed="true"
+        >
+          <span class="role-dot" aria-hidden="true"></span>
+          Admin
+        </button>
 
-            <nav class="role-tabs" aria-label="Account role">
+        <button
+          type="button"
+          data-role="teacher"
+          aria-pressed="false"
+        >
+          <span class="role-dot" aria-hidden="true"></span>
+          Teacher
+        </button>
 
-                <button type="button"
-                        data-role="admin"
-                        aria-pressed="true">
-                    Admin
-                </button>
+        <button
+          type="button"
+          data-role="student"
+          aria-pressed="false"
+        >
+          <span class="role-dot" aria-hidden="true"></span>
+          Student
+        </button>
+      </nav>
 
-                <button type="button"
-                        data-role="teacher"
-                        aria-pressed="false">
-                    Teacher
-                </button>
+      <p
+        id="login-message"
+        class="message"
+        role="status"
+        aria-live="polite"
+        tabindex="-1"
+        hidden
+      ></p>
 
-                <button type="button"
-                        data-role="student"
-                        aria-pressed="false">
-                    Student
-                </button>
+      <form id="login-form" aria-busy="true">
+        <label for="email">Email address</label>
 
-            </nav>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autocomplete="username"
+          placeholder="you@example.com"
+          maxlength="254"
+          autocapitalize="none"
+          spellcheck="false"
+          required
+          disabled
+        >
 
-            <form id="login-form">
+        <label for="password">Password</label>
 
-                <label for="email">Email address</label>
+        <div class="password-wrap">
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Enter your password"
+            required
+            disabled
+          >
 
-                <input id="email"
-                       type="email"
-                       autocomplete="username"
-                       placeholder="you@example.com"
-                       maxlength="254"
-                       required>
-
-                <label for="password">Password</label>
-
-                <div class="password-wrap">
-
-                    <input id="password"
-                           type="password"
-                           autocomplete="current-password"
-                           placeholder="Enter your password"
-                           required>
-
-                    <button id="toggle-password"
-                            type="button"
-                            aria-pressed="false"
-                            aria-controls="password">
-                        Show
-                    </button>
-
-                </div>
-
-                <p id="login-message"
-                   class="message"
-                   role="status"
-                   aria-live="polite"
-                   hidden></p>
-
-                <button id="signin-button"
-                        class="primary"
-                        type="submit"
-                        disabled>
-                    Loading Firebase…
-                </button>
-
-            </form>
-
-            <p class="helper">
-                Use your Smart Campus account email and password.
-            </p>
-
+          <button
+            id="toggle-password"
+            type="button"
+            aria-pressed="false"
+            aria-controls="password"
+            aria-label="Show password"
+            disabled
+          >
+            Show
+          </button>
         </div>
 
-        <section id="account-section" hidden>
+        <button
+          id="signin-button"
+          class="primary"
+          type="submit"
+          disabled
+        >
+          Checking your session…
+        </button>
+      </form>
 
-            <span class="success-icon" aria-hidden="true">✓</span>
+      <p class="helper">
+        Use the account provided by your campus administrator.
+      </p>
 
-            <span class="eyebrow">ACCOUNT VERIFIED</span>
+      <div class="support-note">
+        <span aria-hidden="true">?</span>
 
-            <h2 id="account-name"></h2>
-
-            <p class="muted">
-                You have signed in successfully.
-            </p>
-
-            <dl>
-                <dt>Email</dt>
-                <dd id="account-email"></dd>
-
-                <dt>Workspace</dt>
-                <dd id="account-role"></dd>
-            </dl>
-
-            <p class="helper">
-                Your Smart Campus account is verified.
-            </p>
-
-            <button id="logout-button"
-                    class="primary"
-                    type="button">
-                Log out →
-            </button>
-
-            <p id="logout-message"
-               class="message"
-               role="status"
-               aria-live="polite"
-               hidden></p>
-
-        </section>
-
+        <p>
+          Need help signing in?<br>
+          <strong>Contact your campus administrator.</strong>
+        </p>
+      </div>
     </section>
+  </main>
 
-</main>
+  <script type="module">
+    import('./js/login.js?v=6').catch(() => {
+      const message = document.getElementById('login-message');
 
-<script type="module">
-    import("./js/login.js").catch(() => {
-        const message = document.getElementById("login-message");
-        const button = document.getElementById("signin-button");
+      message.textContent =
+        'Sign in could not load. Check your connection and refresh this page.';
 
-        message.textContent =
-            "Firebase could not load. Check your connection and refresh the page.";
+      message.className = 'message error';
+      message.setAttribute('role', 'alert');
+      message.hidden = false;
 
-        message.hidden = false;
-        button.disabled = true;
-        button.textContent = "Refresh to try again";
+      document.getElementById('signin-button').textContent =
+        'Refresh to try again';
     });
-</script>
-
+  </script>
 </body>
 </html>

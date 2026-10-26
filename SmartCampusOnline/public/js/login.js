@@ -1,277 +1,308 @@
 import {
   auth,
   db
-} from "./firebase-config.js";
+} from './firebase-config.js';
 
 import {
   signInWithEmailAndPassword,
   onAuthStateChanged,
   signOut
-} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 
 import {
   doc,
   getDocFromServer
-} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
+import {
+  queueLoginFeedback,
+  consumeLogoutFeedback
+} from './auth-feedback.js?v=1';
 
-const form = document.getElementById("login-form");
-const email = document.getElementById("email");
-const password = document.getElementById("password");
-const submit = document.getElementById("signin-button");
-const message = document.getElementById("login-message");
+const $ = id => document.getElementById(id);
+
+const form = $('login-form');
+const email = $('email');
+const password = $('password');
+
+const submit = $('signin-button');
+const message = $('login-message');
+const toggle = $('toggle-password');
 
 const roleButtons = [
-  ...document.querySelectorAll("[data-role]")
+  ...document.querySelectorAll(
+    '.role-tabs [data-role]'
+  )
 ];
 
 const roles = [
-  "admin",
-  "teacher",
-  "student"
+  'admin',
+  'teacher',
+  'student'
 ];
 
-const requestedRole = new URLSearchParams(
-  location.search
-).get("role");
+const requested = new URLSearchParams(location.search)
+  .get('role');
 
-let selectedRole = roles.includes(requestedRole)
-  ? requestedRole
-  : "admin";
+let selectedRole = roles.includes(requested)
+  ? requested
+  : 'admin';
 
-let busy = false;
-let submitting = false;
+let busy = true;
+let processing = false;
+let redirecting = false;
+let version = 0;
 
-
-// --------------------------------------------------
-// Messages
-// --------------------------------------------------
+const roleName = role =>
+  role[0].toUpperCase() + role.slice(1);
 
 function showMessage(text, success = false) {
   message.textContent = text;
 
-  message.className = success
-    ? "message success"
-    : "message";
+  message.className =
+    'message ' + (success ? 'success' : 'error');
+
+  message.setAttribute(
+    'role',
+    success ? 'status' : 'alert'
+  );
+
+  message.setAttribute(
+    'aria-live',
+    success ? 'polite' : 'assertive'
+  );
 
   message.hidden = false;
+
+  if (!success) {
+    message.focus();
+  }
 }
 
-
-// --------------------------------------------------
-// Button and role selection
-// --------------------------------------------------
-
-function setBusy(value) {
+function setBusy(
+  value,
+  label = 'Checking your session…'
+) {
   busy = value;
 
-  submit.disabled = value;
+  form.setAttribute(
+    'aria-busy',
+    String(value)
+  );
 
-  roleButtons.forEach(button => {
-    button.disabled = value;
+  [
+    submit,
+    email,
+    password,
+    toggle,
+    ...roleButtons
+  ].forEach(element => {
+    element.disabled = value;
   });
 
-  const roleName =
-    selectedRole[0].toUpperCase() +
-    selectedRole.slice(1);
+  submit.classList.toggle('is-busy', value);
 
   submit.textContent = value
-    ? "Checking account…"
-    : `Sign in as ${roleName} →`;
+    ? label
+    : `Sign in as ${roleName(selectedRole)} →`;
 }
 
 function updateRole() {
+  document.body.dataset.role = selectedRole;
+
+  $('workspace-label').textContent =
+    roleName(selectedRole) + ' workspace';
+
+  $('theme-color').content = {
+    admin: '#142840',
+    teacher: '#153c30',
+    student: '#30244f'
+  }[selectedRole];
+
   roleButtons.forEach(button => {
     button.setAttribute(
-      "aria-pressed",
-      String(
-        button.dataset.role === selectedRole
-      )
+      'aria-pressed',
+      String(button.dataset.role === selectedRole)
     );
   });
 
-  setBusy(busy);
-}
+  const url = new URL(location.href);
+  url.searchParams.set('role', selectedRole);
 
-
-// --------------------------------------------------
-// Read and validate campus profile
-// --------------------------------------------------
-
-async function readProfile(user) {
-  const snapshot = await getDocFromServer(
-    doc(db, "users", user.uid)
+  history.replaceState(
+    null,
+    '',
+    url.pathname + url.search + url.hash
   );
 
+  if (!busy) {
+    setBusy(false);
+  }
+}
+
+async function readProfile(user) {
+  let timer;
+
+  const snapshot = await Promise.race([
+    getDocFromServer(
+      doc(db, 'users', user.uid)
+    ),
+
+    new Promise((resolve, reject) => {
+      timer = setTimeout(
+        () => reject(
+          Error(
+            'Account check timed out. Please try again.'
+          )
+        ),
+        25000
+      );
+    })
+  ]).finally(() => clearTimeout(timer));
+
+  if (auth.currentUser?.uid !== user.uid) {
+    throw Error(
+      'Your session changed. Please sign in again.'
+    );
+  }
+
   if (!snapshot.exists()) {
-    throw new Error(
-      "Your campus profile has not been created. Contact the administrator."
+    throw Error(
+      'Your campus profile is not available. Contact the administrator.'
     );
   }
 
   const profile = snapshot.data();
 
   if (profile.active !== true) {
-    throw new Error(
-      "Your campus account is disabled. Contact the administrator."
+    throw Error(
+      'Your campus account is disabled. Contact the administrator.'
     );
   }
 
-  if (profile.provisioning === "pending") {
-    throw new Error(
-      "Your account setup is not complete. Contact the administrator."
+  if (profile.provisioning === 'pending') {
+    throw Error(
+      'Your account setup is incomplete. Contact the administrator.'
     );
   }
 
   if (!roles.includes(profile.role)) {
-    throw new Error(
-      "Your account role is invalid."
+    throw Error(
+      'Your account workspace is invalid. Contact the administrator.'
     );
   }
 
   return profile;
 }
 
+function openWorkspace(user, profile) {
+  queueLoginFeedback(user, profile);
 
-// --------------------------------------------------
-// Open the correct workspace
-// --------------------------------------------------
+  redirecting = true;
+  password.value = '';
 
-function displayAccount(user, profile) {
-  const destinations = {
-    admin: "/admin/index.html",
-    teacher: "/teacher/index.html",
-    student: "/student/index.html"
-  };
+  setBusy(
+    true,
+    'Signed in. Opening your workspace…'
+  );
 
-  const destination = destinations[profile.role];
-
-  if (!destination) {
-    throw new Error(
-      "Your account role is invalid."
-    );
-  }
-
-  location.replace(destination);
+  location.replace(
+    '/' + profile.role + '/index.html'
+  );
 }
 
-
-// --------------------------------------------------
-// Error messages
-// --------------------------------------------------
-
-function friendlyError(error) {
+function friendly(error) {
   const messages = {
-    "auth/invalid-credential":
-      "Email or password is incorrect.",
+    'auth/invalid-credential':
+      'Email or password is incorrect.',
 
-    "auth/wrong-password":
-      "Email or password is incorrect.",
+    'auth/wrong-password':
+      'Email or password is incorrect.',
 
-    "auth/user-not-found":
-      "Email or password is incorrect.",
+    'auth/user-not-found':
+      'Email or password is incorrect.',
 
-    "auth/invalid-email":
-      "Enter a valid email address.",
+    'auth/invalid-email':
+      'Enter a valid email address.',
 
-    "auth/missing-password":
-      "Enter your password.",
+    'auth/missing-password':
+      'Enter your password.',
 
-    "auth/user-disabled":
-      "This login account is disabled.",
+    'auth/user-disabled':
+      'This login account is disabled. Contact the administrator.',
 
-    "auth/too-many-requests":
-      "Too many attempts. Please try again later.",
+    'auth/too-many-requests':
+      'Too many attempts. Please try again later.',
 
-    "auth/network-request-failed":
-      "Network connection failed. Check your connection and VPN.",
+    'auth/network-request-failed':
+      'Connection failed. Check your internet and try again.',
 
-    "permission-denied":
-      "Profile access was denied. Check that the Firestore Rules were published.",
+    'permission-denied':
+      'Your account profile could not be accessed. Contact the administrator.',
 
-    "unavailable":
-      "Firestore is unavailable. Check your connection and try again."
+    'unavailable':
+      'The campus service is temporarily unavailable. Please try again.'
   };
 
   return messages[error.code] ||
     (
       error.code
-        ? `Could not sign in (${error.code}).`
+        ? 'Could not sign in. Please try again.'
         : error.message
     ) ||
-    "Could not sign in. Please try again.";
+    'Could not sign in. Please try again.';
 }
 
-
-// --------------------------------------------------
-// Role buttons
-// --------------------------------------------------
-
 roleButtons.forEach(button => {
-  button.addEventListener("click", event => {
-    event.preventDefault();
-
-    if (busy) {
+  button.addEventListener('click', () => {
+    if (
+      busy ||
+      !roles.includes(button.dataset.role)
+    ) {
       return;
     }
 
-    const role = button.dataset.role;
-
-    if (!roles.includes(role)) {
-      return;
-    }
-
-    selectedRole = role;
-
+    selectedRole = button.dataset.role;
     message.hidden = true;
 
     updateRole();
   });
 });
 
+toggle.addEventListener('click', () => {
+  if (busy) return;
 
-// --------------------------------------------------
-// Show / hide password
-// --------------------------------------------------
-
-document.getElementById(
-  "toggle-password"
-)?.addEventListener("click", event => {
-  event.preventDefault();
-
-  const visible = password.type === "password";
+  const visible = password.type === 'password';
 
   password.type = visible
-    ? "text"
-    : "password";
+    ? 'text'
+    : 'password';
 
-  event.currentTarget.textContent = visible
-    ? "Hide"
-    : "Show";
+  toggle.textContent = visible
+    ? 'Hide'
+    : 'Show';
 
-  event.currentTarget.setAttribute(
-    "aria-pressed",
+  toggle.setAttribute(
+    'aria-pressed',
     String(visible)
+  );
+
+  toggle.setAttribute(
+    'aria-label',
+    visible ? 'Hide password' : 'Show password'
   );
 });
 
-
-// --------------------------------------------------
-// Sign in
-// --------------------------------------------------
-
-form.addEventListener("submit", async event => {
+form.addEventListener('submit', async event => {
   event.preventDefault();
 
-  if (busy) {
-    return;
-  }
+  if (busy || !form.reportValidity()) return;
 
-  submitting = true;
-
-  setBusy(true);
+  processing = true;
+  ++version;
 
   message.hidden = true;
+  setBusy(true, 'Signing in…');
 
   try {
     const credential =
@@ -286,160 +317,84 @@ form.addEventListener("submit", async event => {
     );
 
     if (profile.role !== selectedRole) {
-      throw new Error(
-        `This is a ${profile.role} account. Select the correct workspace.`
+      throw Error(
+        `This is a ${roleName(profile.role)} account. ` +
+        `Select the ${roleName(profile.role)} workspace.`
       );
     }
 
-    password.value = "";
-
-    displayAccount(
+    openWorkspace(
       credential.user,
       profile
     );
-
   } catch (error) {
     try {
       await signOut(auth);
-    } catch {
-      // Keep the original login error.
-    }
+    } catch {}
 
     showMessage(
-      friendlyError(error)
+      friendly(error)
     );
-
   } finally {
-    submitting = false;
+    processing = false;
 
-    setBusy(false);
+    if (!redirecting) {
+      setBusy(false);
+    }
   }
 });
-
-
-// --------------------------------------------------
-// Sign out from an older account confirmation screen
-// --------------------------------------------------
-
-document.getElementById(
-  "logout-button"
-)?.addEventListener("click", async event => {
-  event.preventDefault();
-
-  if (busy) {
-    return;
-  }
-
-  const button = event.currentTarget;
-
-  const logoutMessage = document.getElementById(
-    "logout-message"
-  );
-
-  button.disabled = true;
-
-  if (logoutMessage) {
-    logoutMessage.hidden = true;
-  }
-
-  try {
-    await signOut(auth);
-
-    const accountSection = document.getElementById(
-      "account-section"
-    );
-
-    const signinSection = document.getElementById(
-      "signin-section"
-    );
-
-    if (accountSection) {
-      accountSection.hidden = true;
-    }
-
-    if (signinSection) {
-      signinSection.hidden = false;
-    }
-
-    password.value = "";
-
-    showMessage(
-      "Logged out successfully.",
-      true
-    );
-
-  } catch (error) {
-    if (logoutMessage) {
-      logoutMessage.textContent =
-        friendlyError(error);
-
-      logoutMessage.hidden = false;
-    } else {
-      showMessage(
-        friendlyError(error)
-      );
-    }
-
-  } finally {
-    button.disabled = false;
-  }
-});
-
-
-// --------------------------------------------------
-// Restore an existing login
-// --------------------------------------------------
 
 updateRole();
-
 setBusy(true);
 
 onAuthStateChanged(auth, async user => {
-  if (submitting) {
-    return;
-  }
+  if (processing || redirecting) return;
+
+  const current = ++version;
 
   if (!user) {
-    const accountSection = document.getElementById(
-      "account-section"
-    );
-
-    const signinSection = document.getElementById(
-      "signin-section"
-    );
-
-    if (accountSection) {
-      accountSection.hidden = true;
-    }
-
-    if (signinSection) {
-      signinSection.hidden = false;
-    }
-
     setBusy(false);
+
+    if (consumeLogoutFeedback()) {
+      showMessage(
+        'You have been logged out successfully.',
+        true
+      );
+    }
 
     return;
   }
 
+  processing = true;
   setBusy(true);
 
   try {
     const profile = await readProfile(user);
 
-    displayAccount(user, profile);
+    if (current !== version) return;
 
+    selectedRole = profile.role;
+
+    updateRole();
+    openWorkspace(user, profile);
   } catch (error) {
     try {
       await signOut(auth);
-    } catch {
-      // Keep the profile error visible.
+    } catch {}
+
+    if (current === version) {
+      showMessage(
+        friendly(error)
+      );
     }
-
-    showMessage(
-      friendlyError(error)
-    );
-
   } finally {
-    setBusy(false);
+    processing = false;
+
+    if (
+      !redirecting &&
+      current === version
+    ) {
+      setBusy(false);
+    }
   }
 });
