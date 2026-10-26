@@ -2,66 +2,128 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
   <meta name="theme-color" content="#142840">
+
   <title>Administration · Smart Campus</title>
-  <link rel="stylesheet" href="../static/admin/workspace.css?v=4">
+
+  <link
+    rel="stylesheet"
+    href="../static/admin/workspace.css?v=5"
+  >
+
+  <link
+    rel="stylesheet"
+    href="../static/admin/semester-history.css?v=1"
+  >
 </head>
+
 <body class="admin-portal">
-  <section id="loading" class="loading" role="status">
+  <section
+    id="loading"
+    class="loading"
+    role="status"
+  >
     <span class="brand-logo">SC</span>
     <h1>Smart Campus</h1>
-    <p id="loading-text">Loading administration…</p>
-    <button id="retry" type="button" hidden>Try again</button>
-    <a class="text-link" href="../login.html?role=admin">Back to login</a>
+
+    <p id="loading-text">
+      Loading administration…
+    </p>
+
+    <button id="retry" type="button" hidden>
+      Try again
+    </button>
+
+    <a
+      class="text-link"
+      href="../login.html?role=admin"
+    >
+      Back to login
+    </a>
   </section>
 
   <div id="workspace" hidden>
     <aside class="sidebar">
       <a class="brand" href="#dashboard">
         <span class="brand-logo">SC</span>
+
         <span>
           <strong>Smart Campus</strong>
           <small>Administration</small>
         </span>
       </a>
 
-      <span class="menu-label">CAMPUS MANAGEMENT</span>
+      <span class="menu-label">
+        CAMPUS MANAGEMENT
+      </span>
 
-      <nav class="tsb-nav" aria-label="Admin navigation">
+      <nav
+        class="tsb-nav"
+        aria-label="Admin navigation"
+      >
         <a href="#dashboard">
-          <span aria-hidden="true">▦</span>Dashboard
+          <span aria-hidden="true">▦</span>
+          Dashboard
         </a>
+
         <a href="#teachers">
-          <span aria-hidden="true">◷</span>Teacher Management
+          <span aria-hidden="true">◷</span>
+          Teacher Management
         </a>
+
         <a href="#students">
-          <span aria-hidden="true">♙</span>Student Management
+          <span aria-hidden="true">♙</span>
+          Student Management
         </a>
+
         <a href="#classes">
-          <span aria-hidden="true">▤</span>Class Setup
+          <span aria-hidden="true">▤</span>
+          Class Setup
         </a>
+
         <a href="#reports">
-          <span aria-hidden="true">↗</span>Academic Reports
+          <span aria-hidden="true">↗</span>
+          Academic Reports
         </a>
+
         <a href="#notices">
-          <span aria-hidden="true">▧</span>Notices
+          <span aria-hidden="true">▧</span>
+          Notices
         </a>
+
         <a href="#profile">
-          <span aria-hidden="true">◎</span>Admin Profile
+          <span aria-hidden="true">◎</span>
+          Admin Profile
         </a>
       </nav>
 
       <div class="sidebar-bottom">
         <div class="sidebar-account">
-          <span class="avatar" data-admin-initial>A</span>
+          <span
+            class="avatar"
+            data-admin-initial
+          >A</span>
+
           <div>
-            <strong data-admin-name>Administrator</strong>
+            <strong data-admin-name>
+              Administrator
+            </strong>
+
             <small id="admin-email"></small>
           </div>
         </div>
 
-        <button id="logout" type="button" class="logout-button">
+        <button
+          id="logout"
+          type="button"
+          class="logout-button"
+        >
           Log out →
         </button>
       </div>
@@ -70,15 +132,26 @@
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-title">
-          <strong id="page-title">Dashboard</strong>
+          <strong id="page-title">
+            Dashboard
+          </strong>
+
           <small id="page-date"></small>
         </div>
 
         <div class="topbar-actions">
-          <span class="admin-tag">ADMINISTRATION</span>
-          <button id="refresh" type="button" class="secondary">
+          <span class="admin-tag">
+            ADMINISTRATION
+          </span>
+
+          <button
+            id="refresh"
+            type="button"
+            class="secondary"
+          >
             Refresh
           </button>
+
           <a
             href="#profile"
             class="avatar"
@@ -89,9 +162,15 @@
       </header>
 
       <main>
-        <p id="working" class="info-note" role="status" hidden>
+        <p
+          id="working"
+          class="info-note"
+          role="status"
+          hidden
+        >
           Saving changes…
         </p>
+
         <p
           id="message"
           class="flash"
@@ -99,21 +178,43 @@
           aria-live="polite"
           hidden
         ></p>
+
+        <section
+          id="semester-history"
+          aria-label="Campus semester and class history"
+          hidden
+        ></section>
+
         <div id="content"></div>
       </main>
 
-      <footer>Smart Campus · Developed by Md. Aminul Islam</footer>
+      <footer>
+        Smart Campus · Developed by Md. Aminul Islam
+      </footer>
     </div>
   </div>
 
   <dialog id="modal"></dialog>
 
   <script type="module">
-    import('../js/admin-workspace.js?v=4').catch(() => {
+    Promise.all([
+      import('../js/admin-workspace.js?v=5'),
+      import('../js/admin-semester-history.js?v=1')
+    ]).catch(() => {
+      const text =
+        'The Admin Portal could not load completely. Please refresh and retry.';
+
       document.getElementById('loading-text').textContent =
-        'The Admin Portal could not load. Please refresh and retry.';
+        text;
+
+      const message = document.getElementById('message');
+
+      message.textContent = text;
+      message.className = 'flash danger';
+      message.hidden = false;
 
       const retry = document.getElementById('retry');
+
       retry.hidden = false;
       retry.onclick = () => location.reload();
     });

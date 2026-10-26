@@ -59,6 +59,9 @@ let selectedClass = '';
 let report = null;
 let work = null;
 let refreshNeeded = false;
+let activeFeedbackKey = '';
+
+const formFeedback = new Map();
 
 let edits = {
   teacher: null,
@@ -70,7 +73,19 @@ let edits = {
 let directorySearch = '';
 let classSearch = '';
 
+let directoryFilter = {
+  year: '',
+  season: ''
+};
+
+let classFilter = {
+  year: '',
+  season: ''
+};
+
 let reportFilter = {
+  year: '',
+  season: '',
   semester: '',
   class_id: '',
   from: '',
@@ -90,30 +105,123 @@ function today() {
     .join('-');
 }
 
-function message(text, error = false) {
-  $('message').textContent = text;
-  $('message').className =
-    'flash ' + (error ? 'danger' : 'success');
+/* Form feedback */
 
+function feedbackKey(form) {
+  if (!form?.dataset?.kind) return '';
+
+  const kind = form.dataset.kind;
+
+  const detail = kind === 'enrolment' || kind === 'close-enrolment'
+    ? selectedClass
+    : form.dataset.role || '';
+
+  return [page, kind, detail].join(':');
+}
+
+function successFeedbackKey(form) {
+  if (form?.dataset.kind === 'close-enrolment') {
+    return ['classes', 'enrolment', selectedClass].join(':');
+  }
+
+  if (form?.dataset.kind === 'reset-password') {
+    return [page, 'account', form.dataset.role || ''].join(':');
+  }
+
+  return feedbackKey(form);
+}
+
+function installFeedback() {
+  document.querySelectorAll('form[data-kind]').forEach(form => {
+    const key = feedbackKey(form);
+
+    let node = form.querySelector('[data-form-feedback]');
+
+    if (!node) {
+      node = document.createElement('p');
+      node.dataset.formFeedback = '';
+      node.tabIndex = -1;
+      form.append(node);
+    }
+
+    node.dataset.feedbackKey = key;
+
+    const value = formFeedback.get(key);
+
+    node.textContent = value?.text || '';
+
+    node.className = 'flash form-feedback ' +
+      (value?.error ? 'danger' : 'success');
+
+    node.setAttribute('role', value?.error ? 'alert' : 'status');
+    node.setAttribute('aria-live', value?.error ? 'assertive' : 'polite');
+
+    node.hidden = !value?.text;
+  });
+}
+
+function message(text, error = false, target = null) {
+  const key = typeof target === 'string'
+    ? target
+    : feedbackKey(target);
+
+  if (key) {
+    if (text) {
+      formFeedback.set(key, { text, error });
+    } else {
+      formFeedback.delete(key);
+    }
+
+    $('message').textContent = '';
+    $('message').hidden = true;
+
+    installFeedback();
+
+    const node = [
+      ...document.querySelectorAll('[data-form-feedback]')
+    ].find(item =>
+      item.dataset.feedbackKey === key &&
+      !item.hidden
+    );
+
+    if (node) {
+      const details = node.closest('details');
+
+      if (details) details.open = true;
+
+      node.scrollIntoView?.({
+        block: 'nearest',
+        behavior: 'smooth'
+      });
+    }
+
+    return;
+  }
+
+  $('message').textContent = text;
+  $('message').className = 'flash ' + (error ? 'danger' : 'success');
   $('message').hidden = !text;
 }
 
 function lock(value) {
   busy = value;
-  $('working').hidden = !value;
+
+  $('working').hidden = !value || !!activeFeedbackKey;
 
   document.querySelectorAll('button')
     .forEach(button => button.disabled = value);
 
-  $('content').setAttribute(
-    'aria-busy',
-    String(value)
-  );
+  $('content').setAttribute('aria-busy', String(value));
 }
+
+/* API */
 
 async function api(path, body) {
   const user = auth.currentUser;
-  if (!user) throw Error('Please sign in again.');
+
+  if (!user) {
+    throw Error('Please sign in again.');
+  }
 
   let tokenTimer;
 
@@ -250,20 +358,24 @@ async function refresh() {
 async function mutate(
   path,
   data,
-  after = () => {}
+  after = () => {},
+  form = null
 ) {
   if (busy) return;
 
   if (refreshNeeded) {
     message(
       'The last change was saved. Use Refresh before making another change.',
-      true
+      true,
+      form
     );
     return;
   }
 
+  activeFeedbackKey = feedbackKey(form);
+
   lock(true);
-  message('Saving…');
+  message('Saving…', false, form);
 
   let saved = false;
 
@@ -274,10 +386,15 @@ async function mutate(
     refreshNeeded = true;
 
     after(result);
-    await refresh();
 
+    await refresh();
     render();
-    message(result.message || 'Saved.');
+
+    message(
+      result.message || 'Saved.',
+      false,
+      successFeedbackKey(form)
+    );
   } catch (error) {
     message(
       (
@@ -285,10 +402,12 @@ async function mutate(
           ? 'Saved, but the workspace could not refresh. Use Refresh. '
           : ''
       ) + error.message,
-      true
+      true,
+      saved ? successFeedbackKey(form) : feedbackKey(form)
     );
   } finally {
     lock(false);
+    activeFeedbackKey = '';
   }
 }
 
@@ -312,6 +431,8 @@ function clearId(type) {
   );
 }
 
+/* UI helpers */
+
 const nameOf = id =>
   state.users.find(user => user.id === id)?.name ||
   'Account unavailable';
@@ -331,12 +452,7 @@ function badge(text, tone = 'neutral') {
   return `<span class="badge ${tone}">${h(text)}</span>`;
 }
 
-function button(
-  text,
-  action,
-  id = '',
-  danger = false
-) {
+function button(text, action, id = '', danger = false) {
   return `
     <button
       type="button"
@@ -390,12 +506,7 @@ function select(
   `;
 }
 
-function panel(
-  title,
-  body,
-  copy = '',
-  extra = ''
-) {
+function panel(title, body, copy = '', extra = '') {
   return `
     <section class="panel">
       <div class="section-heading">
@@ -453,6 +564,248 @@ function metrics(items) {
   `;
 }
 
+/* Summer / Spring and editable year */
+
+function termInfo(value) {
+  const match = /^(summer|spring)\s*[-/]?\s*(\d{4})$/i.exec(
+    String(value || '').normalize('NFKC').trim()
+  );
+
+  if (!match) return null;
+
+  const year = Number(match[2]);
+
+  if (year < 1900 || year > 9999) return null;
+
+  const season = match[1].toLowerCase() === 'summer'
+    ? 'Summer'
+    : 'Spring';
+
+  return {
+    season,
+    year,
+    label: season + ' ' + year,
+    start: year + (season === 'Summer' ? '-01-01' : '-07-01'),
+    end: year + (season === 'Summer' ? '-06-30' : '-12-31')
+  };
+}
+
+function currentTerm() {
+  const date = today();
+
+  return termInfo(
+    (Number(date.slice(5, 7)) <= 6 ? 'Summer ' : 'Spring ') +
+    date.slice(0, 4)
+  );
+}
+
+function termFields(value = '') {
+  const existing = String(value || '').trim();
+  const info = termInfo(existing) || currentTerm();
+  const legacy = existing && !termInfo(existing);
+
+  return `
+    <div
+      class="term-fields"
+      data-term-fields
+      data-original="${h(existing)}"
+      data-value="${h(existing || info.label)}"
+    >
+      ${select(
+        'Semester',
+        'term_name',
+        [
+          ['Summer', 'Summer · January–June'],
+          ['Spring', 'Spring · July–December'],
+          ...(legacy
+            ? [['__legacy', 'Keep existing: ' + existing]]
+            : [])
+        ],
+        legacy ? '__legacy' : info.season,
+        true
+      )}
+
+      ${field(
+        'Year',
+        'term_year',
+        legacy ? '' : info.year,
+        'number',
+        `min="1900" max="9999" step="1" ${
+          legacy ? 'disabled' : 'required'
+        }`
+      )}
+
+      <small class="term-preview" data-term-preview>
+        ${h(existing || info.label)}
+      </small>
+    </div>
+  `;
+}
+
+function buildTerm(data, original = '') {
+  if (
+    data.term_name === '__legacy' &&
+    original &&
+    !termInfo(original)
+  ) {
+    return original;
+  }
+
+  const year = String(data.term_year || '');
+
+  if (
+    !['Summer', 'Spring'].includes(data.term_name) ||
+    !/^\d{4}$/.test(year) ||
+    Number(year) < 1900 ||
+    Number(year) > 9999
+  ) {
+    throw Error(
+      'Choose Summer or Spring and enter a four-digit year between 1900 and 9999.'
+    );
+  }
+
+  return data.term_name + ' ' + Number(year);
+}
+
+function termFilterFields(filter) {
+  return field(
+    'Year (blank = all)',
+    'year',
+    filter.year,
+    'number',
+    'min="1900" max="9999" step="1"'
+  ) +
+  select(
+    'Semester (blank = all)',
+    'season',
+    [
+      ['Summer', 'Summer · January–June'],
+      ['Spring', 'Spring · July–December']
+    ],
+    filter.season
+  );
+}
+
+function checkTermFilter(data) {
+  if (
+    data.year &&
+    (
+      !/^\d{4}$/.test(data.year) ||
+      Number(data.year) < 1900 ||
+      Number(data.year) > 9999
+    )
+  ) {
+    throw Error(
+      'Enter a four-digit year between 1900 and 9999, or leave Year blank.'
+    );
+  }
+
+  if (
+    data.season &&
+    !['Summer', 'Spring'].includes(data.season)
+  ) {
+    throw Error(
+      'Choose Summer, Spring, or all semesters.'
+    );
+  }
+}
+
+function matchesTerm(value, filter) {
+  if (!filter.year && !filter.season) return true;
+
+  const info = termInfo(value);
+
+  return !!info &&
+    (!filter.year || info.year === Number(filter.year)) &&
+    (!filter.season || info.season === filter.season);
+}
+
+function studentMatchesTerm(user, filter) {
+  return [
+    user.semester,
+
+    ...state.enrolments
+      .filter(item => item.student_id === user.id)
+      .map(item =>
+        item.semester || classOf(item.class_id)?.semester
+      )
+  ].some(term => matchesTerm(term, filter));
+}
+
+function earlierTerm(term, current) {
+  const a = termInfo(term);
+  const b = termInfo(current);
+
+  if (a && b) {
+    return (
+      a.year * 2 + (a.season === 'Spring' ? 1 : 0)
+    ) < (
+      b.year * 2 + (b.season === 'Spring' ? 1 : 0)
+    );
+  }
+
+  const aNumber = /^semester (\d+)$/.exec(semesterKey(term));
+  const bNumber = /^semester (\d+)$/.exec(semesterKey(current));
+
+  return !!aNumber &&
+    !!bNumber &&
+    Number(aNumber[1]) < Number(bNumber[1]);
+}
+
+function syncTermFields(group) {
+  const form = group.closest('form');
+
+  const season = group.querySelector('[name="term_name"]');
+  const year = group.querySelector('[name="term_year"]');
+
+  const legacy = season.value === '__legacy';
+
+  year.disabled = legacy;
+  year.required = !legacy;
+
+  let value;
+
+  try {
+    value = buildTerm(
+      {
+        term_name: season.value,
+        term_year: year.value
+      },
+      group.dataset.original
+    );
+  } catch {
+    group.querySelector('[data-term-preview]').textContent =
+      'Enter a four-digit year.';
+    return;
+  }
+
+  group.querySelector('[data-term-preview]').textContent = value;
+
+  if (
+    value !== group.dataset.value &&
+    form.dataset.kind === 'class'
+  ) {
+    const info = termInfo(value);
+    const old = termInfo(group.dataset.value);
+
+    if (info) {
+      form.querySelector('[name="start_date"]').value = info.start;
+      form.querySelector('[name="end_date"]').value = info.end;
+
+      const session = form.querySelector('[name="academic_session"]');
+
+      if (
+        !session.value ||
+        (old && session.value === String(old.year))
+      ) {
+        session.value = String(info.year);
+      }
+    }
+  }
+
+  group.dataset.value = value;
+}
+
 function termList() {
   return [
     ...new Set([
@@ -468,6 +821,7 @@ function dateTime(value) {
   if (value == null) return '—';
 
   const seconds = value?.seconds ?? value?._seconds;
+
   const parsed = new Date(
     seconds != null ? seconds * 1000 : value
   );
@@ -491,6 +845,8 @@ function noticeCards(items) {
   `).join('') || '<p class="empty-state">No notices yet.</p>';
 }
 
+/* Dashboard */
+
 function dashboard() {
   const overview = state.overview;
   const attendance = overview.attendance;
@@ -500,7 +856,6 @@ function dashboard() {
       ([name, value]) => [labels[name] || name, value]
     )
   ) +
-
   panel(
     'Attendance · ' + overview.date,
 
@@ -512,13 +867,11 @@ function dashboard() {
       ['Absent records', attendance.Absent],
       ['Excused records', attendance.Excused]
     ]) +
-
     `<p class="info-note">
       Student figures count saved attendance records,
       not unique people. Open Academic Reports for student totals.
     </p>`
   ) +
-
   panel(
     'Schedule checks',
 
@@ -537,20 +890,19 @@ function dashboard() {
         </p>
       `
   ) +
-
   panel(
     'Latest notices',
     noticeCards(overview.recent_notices)
   );
 }
 
+/* Student / Teacher accounts */
+
 function accounts(role) {
   const edit = edits[role];
   const isStudent = role === 'student';
 
-  const users = state.users.filter(
-    user => user.role === role
-  );
+  const users = state.users.filter(user => user.role === role);
 
   const visible = users.filter(user =>
     [
@@ -562,7 +914,8 @@ function accounts(role) {
     ]
       .join(' ')
       .toLowerCase()
-      .includes(directorySearch.toLowerCase())
+      .includes(directorySearch.toLowerCase()) &&
+    (!isStudent || studentMatchesTerm(user, directoryFilter))
   );
 
   return `
@@ -626,12 +979,7 @@ function accounts(role) {
                   'text',
                   'maxlength="150"'
                 ) +
-                select(
-                  'Current semester',
-                  'semester',
-                  termList().map(term => [term, term]),
-                  edit?.semester
-                )
+                termFields(edit?.semester)
               : field(
                   'Designation',
                   'designation',
@@ -671,9 +1019,9 @@ function accounts(role) {
           isStudent
             ? `
               <p class="info-note">
-                Semester choices come from Class Setup and existing
-                student profiles. Create the class semester first
-                when adding a new term.
+                Summer runs January–June; Spring runs July–December.
+                Year is editable. Updating the current semester does not move previous class records.
+                Enrol an existing student in the new class through Class Setup.
               </p>
             `
             : ''
@@ -683,13 +1031,11 @@ function accounts(role) {
           <button type="submit">
             ${edit ? 'Save changes' : 'Create account'}
           </button>
-
           ${edit ? button('Cancel', 'cancel', role) : ''}
         </div>
       </form>
     </details>
   ` +
-
   panel(
     'All ' + role + 's',
 
@@ -700,10 +1046,13 @@ function accounts(role) {
           'search',
           directorySearch
         )}
+
+        ${isStudent ? termFilterFields(directoryFilter) : ''}
+
         <button type="submit">Search</button>
+        ${isStudent ? button('Reset', 'reset-directory') : ''}
       </form>
     ` +
-
     table(
       [
         isStudent ? 'Student ID' : 'Teacher ID',
@@ -728,7 +1077,6 @@ function accounts(role) {
                 : user.active
                   ? 'Active'
                   : 'Disabled',
-
               user.active ? 'present' : 'neutral'
             )}
           </td>
@@ -761,9 +1109,10 @@ function accounts(role) {
 
     users.length + ' accounts'
   ) +
-
   (isStudent ? '' : teacherAttendance());
 }
+
+/* Teacher work attendance */
 
 function teacherAttendance() {
   const month = work?.month || today().slice(0, 7);
@@ -817,18 +1166,15 @@ function teacherAttendance() {
         ${select(
           'Teacher (blank = all)',
           'teacher_id',
-
           state.users
             .filter(user => user.role === 'teacher')
             .map(user => [user.id, user.name]),
-
           work?.teacher || ''
         )}
 
         <button type="submit">View attendance</button>
       </form>
     ` +
-
     (
       work
         ? table(
@@ -843,6 +1189,8 @@ function teacherAttendance() {
     )
   );
 }
+
+/* Classes and enrolments */
 
 function slot(value = {
   day: 0,
@@ -941,7 +1289,8 @@ function classesPage() {
     ]
       .join(' ')
       .toLowerCase()
-      .includes(classSearch.toLowerCase())
+      .includes(classSearch.toLowerCase()) &&
+    matchesTerm(classroom.semester, classFilter)
   );
 
   return panel(
@@ -949,7 +1298,6 @@ function classesPage() {
     conflictsTable(),
     'Resolve these by changing future routines, teacher assignment or enrolments.'
   ) +
-
   `
     <details class="panel" ${edit ? 'open' : ''}>
       <summary>${edit ? 'Edit class' : '＋ Create class'}</summary>
@@ -972,38 +1320,12 @@ function classesPage() {
             'required maxlength="150"'
           )}
 
-          ${
-            edit
-              ? field(
-                  'Semester',
-                  'semester',
-                  edit.semester,
-                  'text',
-                  'required readonly'
-                )
-              : select(
-                  'Semester',
-                  'semester',
-                  [
-                    ...termList().map(term => [term, term]),
-                    ['__new', '＋ New semester']
-                  ],
-                  '',
-                  true
-                ) +
-                field(
-                  'New semester name (when New semester is selected)',
-                  'new_semester',
-                  '',
-                  'text',
-                  'maxlength="80"'
-                )
-          }
+          ${termFields(edit?.semester)}
 
           ${field(
             'Academic session',
             'academic_session',
-            edit?.academic_session,
+            edit?.academic_session ?? String(currentTerm().year),
             'text',
             `maxlength="80" ${edit ? 'readonly' : ''}`
           )}
@@ -1037,14 +1359,14 @@ function classesPage() {
           ${field(
             'Class starts (optional)',
             'start_date',
-            edit?.start_date,
+            edit ? edit.start_date : currentTerm().start,
             'date'
           )}
 
           ${field(
             'Class ends (optional)',
             'end_date',
-            edit?.end_date,
+            edit ? edit.end_date : currentTerm().end,
             'date'
           )}
 
@@ -1074,9 +1396,10 @@ function classesPage() {
         </div>
 
         <p class="info-note">
-          Use class dates to separate different teaching terms.
-          When dates are blank, the routine is treated as open-ended.
-          Subject code, semester, session and section are fixed after creation.
+          Summer: January–June. Spring: July–December. Year is editable.
+          Semester and Year set the suggested class dates; adjust dates if needed.
+          Changing an existing class's Semester or Year saves a new class for that term.
+          The original class, enrolments, attendance and marks remain in their original term.
         </p>
 
         <h3>Weekly routine</h3>
@@ -1094,7 +1417,6 @@ function classesPage() {
       </form>
     </details>
   ` +
-
   panel(
     'Saved classes',
 
@@ -1105,10 +1427,13 @@ function classesPage() {
           'search',
           classSearch
         )}
+
+        ${termFilterFields(classFilter)}
+
         <button type="submit">Search</button>
+        ${button('Reset', 'reset-classes')}
       </form>
     ` +
-
     table(
       [
         'Class',
@@ -1150,7 +1475,6 @@ function classesPage() {
           <td class="actions">
             ${button('Edit', 'edit-class', classroom.id)}
             ${button('Students', 'roster', classroom.id)}
-
             ${button(
               classroom.active === false ? 'Restore' : 'Archive',
               'status-class',
@@ -1161,7 +1485,6 @@ function classesPage() {
       `)
     )
   ) +
-
   panel(
     'Student enrolment',
 
@@ -1169,20 +1492,23 @@ function classesPage() {
       'Choose class',
       'roster_class',
 
-      state.classes.map(classroom => [
-        classroom.id,
+      state.classes
+        .filter(classroom =>
+          matchesTerm(classroom.semester, classFilter)
+        )
+        .map(classroom => [
+          classroom.id,
 
-        classroom.code +
-          ' — ' +
-          classroom.name +
-          ' · ' +
-          classroom.semester +
-          (classroom.active === false ? ' (archived)' : '')
-      ]),
+          classroom.code +
+            ' — ' +
+            classroom.name +
+            ' · ' +
+            classroom.semester +
+            (classroom.active === false ? ' (archived)' : '')
+        ]),
 
       selectedClass
     ) +
-
     (
       current
         ? `
@@ -1299,33 +1625,72 @@ function classesPage() {
   );
 }
 
+/* Results */
+
+function semesterKey(value) {
+  const name = String(value || '')
+    .normalize('NFKC')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+  const numeric =
+    /^(?:semester\s*)?([1-9]\d?)(?:st|nd|rd|th)?(?:\s*semester)?$/
+      .exec(name);
+
+  if (numeric) return 'semester ' + Number(numeric[1]);
+
+  return name.replace(
+    /^(spring|summer|autumn|fall|winter)\s*[-/]?\s*(\d{4})$/,
+    '$1 $2'
+  );
+}
+
+function resultNumber(value) {
+  return Number(Number(value).toPrecision(15))
+    .toLocaleString('en-GB', {
+      maximumFractionDigits: 12
+    });
+}
+
 function courseResult(course) {
   const keys = ['assessment', 'mid', 'final'];
 
-  const complete = keys.every(name =>
-    course[name] != null &&
-    course[name] !== '' &&
-    Number.isFinite(Number(course[name])) &&
-    Number(course[name]) >= 0 &&
-    Number(course[name]) <= Number(course[name + '_max'])
-  );
+  const valid = value =>
+    ['number', 'string'].includes(typeof value) &&
+    String(value).trim() !== '' &&
+    Number.isFinite(Number(value));
 
   const maximum = keys.reduce(
     (sum, name) => sum + Number(course[name + '_max']),
     0
   );
 
-  return {
-    complete: complete && maximum > 0,
+  const complete =
+    Number.isFinite(maximum) &&
+    maximum > 0 &&
+    keys.every(name =>
+      valid(course[name]) &&
+      valid(course[name + '_max']) &&
+      Number(course[name + '_max']) >= 0 &&
+      Number(course[name]) >= 0 &&
+      Number(course[name]) <= Number(course[name + '_max'])
+    );
 
-    earned: complete
-      ? keys.reduce(
+  const earned = complete
+    ? Number(
+        keys.reduce(
           (sum, name) => sum + Number(course[name]),
           0
-        )
-      : null,
+        ).toPrecision(15)
+      )
+    : null;
 
-    max: maximum
+  return {
+    complete,
+    earned,
+    max: maximum,
+    passed: complete && earned >= maximum * 0.4
   };
 }
 
@@ -1377,9 +1742,11 @@ function marksTable(classes) {
           <td>
             <strong>${h(course.name)}</strong>
             <small>
-              ${h(course.code)} ·
-              ${h(course.academic_session)} ·
-              ${h(course.section)}
+              ${h([
+                course.code,
+                course.academic_session,
+                course.section
+              ].filter(Boolean).join(' · '))}
             </small>
           </td>
 
@@ -1388,7 +1755,8 @@ function marksTable(classes) {
           ${['assessment', 'mid', 'final'].map(name => `
             <td>
               ${
-                course[name] == null
+                course[name] == null ||
+                String(course[name]).trim() === ''
                   ? '—'
                   : h(number(course[name]))
               }
@@ -1399,8 +1767,15 @@ function marksTable(classes) {
           <td>
             ${
               result.complete
-                ? number(result.earned) + ' / ' + number(result.max)
-                : badge('Pending')
+                ? badge(
+                    resultNumber(result.earned) +
+                    ' / ' +
+                    resultNumber(result.max) +
+                    ' · ' +
+                    (result.passed ? 'Pass' : 'Fail'),
+                    result.passed ? 'present' : 'absent'
+                  )
+                : badge('Incomplete', 'unmarked')
             }
           </td>
 
@@ -1450,7 +1825,7 @@ function reportsPage() {
     user => user.role === 'student'
   );
 
-  const body = `
+  const chooser = `
     <form data-kind="load-report" class="filter-form">
       ${field(
         'Find Student ID, name or email',
@@ -1480,82 +1855,175 @@ function reportsPage() {
   if (!report) {
     return panel(
       'Student academic reports',
-      body,
+      chooser,
       'Select a student to view marks, semester averages and attendance.'
     );
   }
 
+  const all = report.classes;
   const profile = report.profile;
-  const current = report.current_semester;
+  const declared = report.current_semester || profile.semester || '';
 
-  const terms = [
-    ...new Set(
-      report.classes.map(course => course.semester)
-    )
-  ].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true })
-  );
+  const current = all.find(course =>
+    semesterKey(course.semester) === semesterKey(declared)
+  )?.semester || declared;
 
-  const previous = terms.filter(term =>
-    current &&
-    term !== current &&
-    term !== 'Semester not assigned' &&
-    resultSummary(
-      report.classes.filter(course => course.semester === term)
-    ).complete
-  );
-
-  const overall = resultSummary(
-    report.classes.filter(course =>
-      previous.includes(course.semester)
-    )
-  );
-
-  const running = report.classes.filter(
-    course => course.semester === current
-  );
-
-  const filteredClasses = report.classes.filter(course =>
-    (
-      !reportFilter.semester ||
-      course.semester === reportFilter.semester
-    ) &&
+  const visible = all.filter(course =>
+    matchesTerm(course.semester, reportFilter) &&
     (
       !reportFilter.class_id ||
       course.id === reportFilter.class_id
     )
   );
 
+  const allTermClasses = term => all.filter(course =>
+    semesterKey(course.semester) === semesterKey(term)
+  );
+
+  const termClasses = term => visible.filter(course =>
+    semesterKey(course.semester) === semesterKey(term)
+  );
+
+  const terms = [
+    ...new Map(
+      visible.map(course => [
+        semesterKey(course.semester),
+        course.semester
+      ])
+    ).values()
+  ].sort((a, b) => {
+    const x = termInfo(a);
+    const y = termInfo(b);
+
+    return x && y
+      ? x.year - y.year ||
+        (
+          x.season === y.season
+            ? 0
+            : x.season === 'Summer'
+              ? -1
+              : 1
+        )
+      : a.localeCompare(b, undefined, { numeric: true });
+  });
+
+  const previous = terms.filter(term =>
+    earlierTerm(term, current) &&
+    resultSummary(allTermClasses(term)).complete
+  );
+
+  const overall = resultSummary(
+    visible.filter(course =>
+      previous.some(term =>
+        semesterKey(term) === semesterKey(course.semester)
+      )
+    )
+  );
+
   const ids = new Set(
-    filteredClasses.map(course => course.id)
+    visible.map(course => course.id)
   );
 
   const rows = report.attendance.filter(session =>
     ids.has(session.class_id) &&
-    (!reportFilter.from || session.lesson_date >= reportFilter.from) &&
-    (!reportFilter.to || session.lesson_date <= reportFilter.to)
+    (
+      !reportFilter.from ||
+      session.lesson_date >= reportFilter.from
+    ) &&
+    (
+      !reportFilter.to ||
+      session.lesson_date <= reportFilter.to
+    )
   );
 
   const attendance = attendanceSummary(rows);
+  const running = termClasses(current);
+
+  const hasFilters = !!(
+    reportFilter.year ||
+    reportFilter.season ||
+    reportFilter.class_id
+  );
+
+  const runningBody = running.length
+    ? marksTable(running)
+    : `
+      <p class="${hasFilters ? 'info-note' : 'warning-note'}">
+        ${
+          !current
+            ? 'No current semester is assigned. Set Semester and Year in Student Management.'
+            : !allTermClasses(current).length
+              ? `The profile's current semester is ${h(current)}, but no enrolled subjects match it. Check the student's Semester/Year and Class Setup enrolments. Available terms: ${h(
+                  [...new Set(all.map(course => course.semester))]
+                    .join(', ') || 'none'
+                )}.`
+              : 'The current semester has no subjects matching the selected filters. Matching terms are shown in Semester history below.'
+        }
+      </p>
+    `;
 
   return panel(
     'Student academic reports',
-    body
+    chooser
   ) +
-
   panel(
     profile.name,
 
+    `<p class="muted">
+      ${h([
+        profile.student_no,
+        profile.email,
+        profile.department
+      ].filter(Boolean).join(' · '))}
+      · Running: ${h(current || 'Not assigned')}
+    </p>`
+  ) +
+  panel(
+    'Report filters',
+
     `
+      <form data-kind="report-filter" class="filter-form">
+        ${termFilterFields(reportFilter)}
+
+        ${select(
+          'Subject (blank = all)',
+          'class_id',
+
+          all.map(course => [
+            course.id,
+            course.code + ' — ' + course.name + ' · ' + course.semester
+          ]),
+
+          reportFilter.class_id
+        )}
+
+        ${field(
+          'Attendance from',
+          'from',
+          reportFilter.from,
+          'date'
+        )}
+
+        ${field(
+          'Attendance to',
+          'to',
+          reportFilter.to,
+          'date',
+          `max="${today()}"`
+        )}
+
+        <button type="submit">Apply filters</button>
+        ${button('Reset', 'reset-report')}
+      </form>
+
       <p class="muted">
-        ${h(profile.student_no)} ·
-        ${h(profile.email)} ·
-        ${h(profile.department)} ·
-        Running: ${h(current || 'Not assigned')}
+        Year and Semester filter subject results and attendance together.
+        Date filters apply to attendance.
+        Leave Year or Semester blank to include all.
+        Older term names remain available when both are blank.
       </p>
     `
   ) +
-
   panel(
     'Overall result',
 
@@ -1572,103 +2040,55 @@ function reportsPage() {
 
       ['Weighted average', percentage(overall.average)]
     ]) +
-
-    `
-      <p class="info-note">
-        Only fully graded previous semesters are included.
-        Average = total earned ÷ total maximum × 100.
-        Running and incomplete semesters are excluded;
-        no GPA/CGPA is inferred.
-      </p>
-    `
+    `<p class="info-note">
+      Only fully graded semesters earlier than the profile's current semester are eligible.
+      Selected Year, Semester and Subject filters limit the displayed subjects.
+      Average = total earned ÷ total maximum × 100.
+      Running, future and incomplete semesters are excluded.
+      No GPA/CGPA is inferred.
+    </p>`
   ) +
-
   panel(
     'Running semester result',
 
-    current
-      ? marksTable(running)
-      : `
-        <p class="warning-note">
-          Assign the student’s current semester in Student Management.
-        </p>
-      `,
+    `<p class="info-note">
+      Pass: 40% or above.
+      Fail: below 40% after all marks are entered.
+      Missing marks stay Incomplete.
+    </p>` +
+    runningBody,
 
     current || 'Not assigned'
   ) +
-
   panel(
     'Semester history',
 
     terms
-      .filter(term => term !== current)
+      .filter(term =>
+        semesterKey(term) !== semesterKey(current)
+      )
       .map(term => {
-        const classes = report.classes.filter(
-          course => course.semester === term
-        );
-
-        const summary = resultSummary(classes);
+        const courses = termClasses(term);
+        const summary = resultSummary(courses);
 
         return `
-          <details class="semester-record">
+          <details class="semester-record" ${hasFilters ? 'open' : ''}>
             <summary>
               ${h(term)}
               ${badge(
                 summary.complete
-                  ? percentage(summary.average)
-                  : 'In progress'
+                  ? percentage(summary.average) + ' average'
+                  : `${summary.count} / ${summary.total} graded`
               )}
             </summary>
 
-            ${marksTable(classes)}
+            ${marksTable(courses)}
           </details>
         `;
       })
       .join('') ||
-
-      '<p class="empty-state">No previous semester records.</p>'
+      '<p class="empty-state">No other semester records match these filters.</p>'
   ) +
-
-  panel(
-    'Attendance filters',
-
-    `
-      <form data-kind="report-filter" class="filter-form">
-        ${select(
-          'Semester (blank = all)',
-          'semester',
-          terms.map(term => [term, term]),
-          reportFilter.semester
-        )}
-
-        ${select(
-          'Subject (blank = all)',
-          'class_id',
-
-          report.classes.map(course => [
-            course.id,
-            course.code + ' — ' + course.name + ' · ' + course.semester
-          ]),
-
-          reportFilter.class_id
-        )}
-
-        ${field('From', 'from', reportFilter.from, 'date')}
-
-        ${field(
-          'To',
-          'to',
-          reportFilter.to,
-          'date',
-          `max="${today()}"`
-        )}
-
-        <button type="submit">Apply</button>
-        ${button('Reset', 'reset-report')}
-      </form>
-    `
-  ) +
-
   panel(
     'Student attendance',
 
@@ -1680,15 +2100,11 @@ function reportsPage() {
       ['Not marked', attendance['Not marked']],
       ['Attendance', percentage(attendance.percentage)]
     ]) +
-
-    `
-      <p class="info-note">
-        Present + Late count as attended.
-        Excused and Not marked remain in the recorded-class total.
-        ${attendance.pending} past sessions awaiting attendance are excluded.
-      </p>
-    ` +
-
+    `<p class="info-note">
+      Present + Late count as attended.
+      Excused and Not marked remain in the recorded-class total.
+      ${attendance.pending} past sessions awaiting attendance are excluded.
+    </p>` +
     table(
       [
         'Subject',
@@ -1700,7 +2116,7 @@ function reportsPage() {
         '%'
       ],
 
-      filteredClasses.map(course => {
+      visible.map(course => {
         const summary = attendanceSummary(
           rows.filter(row => row.class_id === course.id)
         );
@@ -1722,7 +2138,6 @@ function reportsPage() {
       })
     )
   ) +
-
   panel(
     'Dated class records',
 
@@ -1735,9 +2150,7 @@ function reportsPage() {
 
           <td>
             ${h(session.name)}
-            <small>
-              ${h(session.semester)} · ${h(session.code)}
-            </small>
+            <small>${h(session.semester)} · ${h(session.code)}</small>
           </td>
 
           <td>
@@ -1750,11 +2163,15 @@ function reportsPage() {
                 ? session.status
                 : 'Awaiting attendance',
 
-              session.status === 'Present'
-                ? 'present'
-                : session.status === 'Absent'
-                  ? 'absent'
-                  : 'neutral'
+              session.counted
+                ? ({
+                    Present: 'present',
+                    Late: 'late',
+                    Absent: 'absent',
+                    Excused: 'excused',
+                    'Not marked': 'unmarked'
+                  }[session.status] || 'neutral')
+                : 'unmarked'
             )}
           </td>
         </tr>
@@ -1762,6 +2179,8 @@ function reportsPage() {
     )
   );
 }
+
+/* Notices */
 
 function noticesPage() {
   const edit = edits.notice;
@@ -1783,44 +2202,38 @@ function noticesPage() {
           ${select(
             'Audience',
             'audience',
-
             [
               ['all', 'Everyone'],
               ['teachers', 'All teachers'],
               ['students', 'All students'],
               ['selected', 'Selected recipients']
             ],
-
             edit?.audience || 'all',
             true
           )}
 
           <label class="full">
             Selected recipients
+
             <select name="recipient_ids" multiple size="6">
-              ${
-                state.users
-                  .filter(user =>
-                    user.active &&
-                    user.provisioning !== 'pending'
-                  )
-                  .map(user => `
-                    <option
-                      value="${h(user.id)}"
-                      ${
-                        edit?.recipient_ids?.includes(user.id)
-                          ? 'selected'
-                          : ''
-                      }
-                    >
-                      ${h(user.name)} ·
-                      ${h(user.role)} ·
-                      ${h(user.student_no || user.teacher_no || user.email)}
-                    </option>
-                  `)
-                  .join('')
-              }
+              ${state.users
+                .filter(user =>
+                  user.active &&
+                  user.provisioning !== 'pending'
+                )
+                .map(user => `
+                  <option
+                    value="${h(user.id)}"
+                    ${edit?.recipient_ids?.includes(user.id) ? 'selected' : ''}
+                  >
+                    ${h(user.name)} ·
+                    ${h(user.role)} ·
+                    ${h(user.student_no || user.teacher_no || user.email)}
+                  </option>
+                `)
+                .join('')}
             </select>
+
             <small>Used only for Selected recipients.</small>
           </label>
 
@@ -1839,13 +2252,11 @@ function noticesPage() {
           <button type="submit">
             ${edit ? 'Save notice' : 'Publish notice'}
           </button>
-
           ${edit ? button('Cancel', 'cancel', 'notice') : ''}
         </div>
       </form>
     `
   ) +
-
   panel(
     'Published notices',
 
@@ -1861,16 +2272,16 @@ function noticesPage() {
         </div>
       </article>
     `).join('') ||
-
     '<p class="empty-state">No published notices.</p>'
   ) +
-
   panel(
     'Received teacher notices',
     noticeCards(state.received),
     'Received messages are read-only.'
   );
 }
+
+/* Admin profile */
 
 function profilePage() {
   const profile = state.profile;
@@ -1914,7 +2325,6 @@ function profilePage() {
       </form>
     `
   ) +
-
   panel(
     'Change password',
 
@@ -1955,15 +2365,24 @@ function profilePage() {
   );
 }
 
+/* Rendering */
+
 function render() {
   if (!ready) return;
 
   const [name, query = ''] =
     location.hash.slice(1).split('?');
 
-  page = Object.hasOwn(labels, name)
+  const nextPage = Object.hasOwn(labels, name)
     ? name
     : 'dashboard';
+
+  if (nextPage !== page) {
+    formFeedback.clear();
+    message('');
+  }
+
+  page = nextPage;
 
   const params = new URLSearchParams(query);
 
@@ -2006,6 +2425,7 @@ function render() {
     <div class="page-intro">
       <div>
         <span class="eyebrow">CAMPUS ADMINISTRATION</span>
+
         <h1>
           ${
             page === 'dashboard'
@@ -2016,6 +2436,8 @@ function render() {
       </div>
     </div>
   ` + pages[page]();
+
+  installFeedback();
 
   if (busy) lock(true);
 }
@@ -2038,11 +2460,15 @@ function closeModal() {
 
 function openModal(body) {
   $('modal').innerHTML = body;
+  installFeedback();
   $('modal').showModal();
 }
 
-async function loadReport(studentId) {
+async function loadReport(studentId, form = null) {
+  activeFeedbackKey = feedbackKey(form);
+
   lock(true);
+  message('Loading report…', false, form);
 
   try {
     report = await api(
@@ -2050,6 +2476,8 @@ async function loadReport(studentId) {
     );
 
     reportFilter = {
+      year: '',
+      season: '',
       semester: '',
       class_id: '',
       from: '',
@@ -2059,13 +2487,21 @@ async function loadReport(studentId) {
     location.hash = '#reports';
 
     render();
-    message('');
+
+    message(
+      form ? 'Academic report loaded.' : '',
+      false,
+      form
+    );
   } catch (error) {
-    message(error.message, true);
+    message(error.message, true, form);
   } finally {
     lock(false);
+    activeFeedbackKey = '';
   }
 }
+
+/* Form submissions */
 
 document.addEventListener('submit', async event => {
   const form = event.target;
@@ -2074,6 +2510,7 @@ document.addEventListener('submit', async event => {
   if (!kind) return;
 
   event.preventDefault();
+
   if (busy) return;
 
   const data = Object.fromEntries(new FormData(form));
@@ -2086,15 +2523,43 @@ document.addEventListener('submit', async event => {
 
   const record = form.dataset.id;
 
+  const submit = (path, body, after) =>
+    mutate(path, body, after, form);
+
   try {
     if (kind === 'directory-search') {
+      checkTermFilter(data);
+
       directorySearch = data.search;
+
+      if (page === 'students') {
+        directoryFilter = {
+          year: data.year || '',
+          season: data.season || ''
+        };
+      }
+
       render();
       return;
     }
 
     if (kind === 'class-search') {
+      checkTermFilter(data);
+
       classSearch = data.search;
+
+      classFilter = {
+        year: data.year || '',
+        season: data.season || ''
+      };
+
+      if (
+        selectedClass &&
+        !matchesTerm(classOf(selectedClass)?.semester, classFilter)
+      ) {
+        selectedClass = '';
+      }
+
       render();
       return;
     }
@@ -2102,19 +2567,30 @@ document.addEventListener('submit', async event => {
     if (kind === 'account') {
       const role = form.dataset.role;
 
+      if (role === 'student') {
+        data.semester = buildTerm(
+          data,
+          edits.student?.semester || ''
+        );
+
+        delete data.term_name;
+        delete data.term_year;
+      }
+
       if (record) {
         data.active = data.active === '1';
 
-        await mutate(
+        await submit(
           '/' + role + 's/' + encodeURIComponent(record) + '/account',
           data,
           () => edits[role] = null
         );
       } else {
         passwordValid(data);
+
         data.request_id = requestId(role);
 
-        await mutate(
+        await submit(
           '/' + role + 's',
           data,
           () => clearId(role)
@@ -2125,11 +2601,25 @@ document.addEventListener('submit', async event => {
     }
 
     if (kind === 'class') {
-      if (data.semester === '__new') {
-        data.semester = data.new_semester;
-      }
+      data.semester = buildTerm(
+        data,
+        edits.class?.semester || ''
+      );
 
-      delete data.new_semester;
+      delete data.term_name;
+      delete data.term_year;
+
+      const newTerm =
+        !!record &&
+        semesterKey(data.semester) !==
+          semesterKey(edits.class?.semester);
+
+      const bounds = termInfo(data.semester);
+
+      if ((!record || newTerm) && bounds) {
+        data.start_date ||= bounds.start;
+        data.end_date ||= bounds.end;
+      }
 
       data.weekly_slots = [
         ...document.querySelectorAll('.slot')
@@ -2148,28 +2638,42 @@ document.addEventListener('submit', async event => {
           element.querySelector('[name="room"]').value.trim()
       }));
 
-      await mutate(
-        record
+      await submit(
+        record && !newTerm
           ? '/classes/' + encodeURIComponent(record) + '/save'
           : '/classes',
 
         data,
-        () => edits.class = null
+
+        result => {
+          edits.class = null;
+
+          if (!record || newTerm) {
+            selectedClass = result.id;
+            classSearch = '';
+
+            classFilter = {
+              year: '',
+              season: ''
+            };
+          }
+        }
       );
 
       return;
     }
 
     if (kind === 'enrolment') {
-      await mutate(
+      await submit(
         '/classes/' + encodeURIComponent(record) + '/enrolments',
         data
       );
+
       return;
     }
 
     if (kind === 'close-enrolment') {
-      await mutate(
+      await submit(
         '/classes/' +
           encodeURIComponent(selectedClass) +
           '/enrolments/' +
@@ -2186,7 +2690,7 @@ document.addEventListener('submit', async event => {
     if (kind === 'reset-password') {
       passwordValid(data);
 
-      await mutate(
+      await submit(
         '/' +
           form.dataset.role +
           's/' +
@@ -2208,7 +2712,7 @@ document.addEventListener('submit', async event => {
         data.request_id = requestId('notice');
       }
 
-      await mutate(
+      await submit(
         record
           ? '/notices/' + encodeURIComponent(record) + '/save'
           : '/notices',
@@ -2225,6 +2729,8 @@ document.addEventListener('submit', async event => {
     }
 
     if (kind === 'report-filter') {
+      checkTermFilter(data);
+
       if (
         data.from &&
         data.to &&
@@ -2236,17 +2742,28 @@ document.addEventListener('submit', async event => {
       }
 
       reportFilter = data;
+
       render();
+
+      message(
+        'Report filters applied.',
+        false,
+        form
+      );
+
       return;
     }
 
     if (kind === 'load-report') {
-      await loadReport(data.student_id);
+      await loadReport(data.student_id, form);
       return;
     }
 
     if (kind === 'teacher-attendance') {
+      activeFeedbackKey = feedbackKey(form);
+
       lock(true);
+      message('Loading attendance…', false, form);
 
       try {
         work = {
@@ -2259,15 +2776,25 @@ document.addEventListener('submit', async event => {
         };
 
         render();
+
+        message(
+          'Work attendance loaded.',
+          false,
+          form
+        );
       } finally {
         lock(false);
+        activeFeedbackKey = '';
       }
 
       return;
     }
 
     if (kind === 'profile') {
+      activeFeedbackKey = feedbackKey(form);
+
       lock(true);
+      message('Saving profile…', false, form);
 
       try {
         const result = await api('/profile', data);
@@ -2279,13 +2806,15 @@ document.addEventListener('submit', async event => {
 
         identity();
         render();
-        message(result.message);
+
+        message(result.message, false, form);
 
         if (auth.currentUser?.reload) {
           auth.currentUser.reload().catch(() => {});
         }
       } finally {
         lock(false);
+        activeFeedbackKey = '';
       }
 
       return;
@@ -2293,7 +2822,11 @@ document.addEventListener('submit', async event => {
 
     if (kind === 'own-password') {
       passwordValid(data);
+
+      activeFeedbackKey = feedbackKey(form);
+
       lock(true);
+      message('Updating password…', false, form);
 
       try {
         const user = auth.currentUser;
@@ -2312,12 +2845,15 @@ document.addEventListener('submit', async event => {
         location.replace('/login.html?role=admin');
       } finally {
         lock(false);
+        activeFeedbackKey = '';
       }
     }
   } catch (error) {
-    message(error.message, true);
+    message(error.message, true, form);
   }
 });
+
+/* Buttons and actions */
 
 document.addEventListener('click', async event => {
   const element = event.target.closest('[data-action]');
@@ -2358,7 +2894,11 @@ document.addEventListener('click', async event => {
     if (document.querySelectorAll('.slot').length > 1) {
       element.closest('.slot').remove();
     } else {
-      message('Keep at least one routine slot.', true);
+      message(
+        'Keep at least one routine slot.',
+        true,
+        element.closest('form')
+      );
     }
 
     return;
@@ -2370,8 +2910,34 @@ document.addEventListener('click', async event => {
     return;
   }
 
+  if (action === 'reset-directory') {
+    directorySearch = '';
+
+    directoryFilter = {
+      year: '',
+      season: ''
+    };
+
+    render();
+    return;
+  }
+
+  if (action === 'reset-classes') {
+    classSearch = '';
+
+    classFilter = {
+      year: '',
+      season: ''
+    };
+
+    render();
+    return;
+  }
+
   if (action === 'reset-report') {
     reportFilter = {
+      year: '',
+      season: '',
       semester: '',
       class_id: '',
       from: '',
@@ -2390,6 +2956,7 @@ document.addEventListener('click', async event => {
   if (action === 'teacher-classes') {
     classSearch = nameOf(id);
     location.hash = '#classes';
+
     render();
     return;
   }
@@ -2533,7 +3100,20 @@ document.addEventListener('click', async event => {
   }
 });
 
+/* Changes and live year preview */
+
 document.addEventListener('change', event => {
+  if (
+    !busy &&
+    ['term_name', 'term_year'].includes(event.target.name)
+  ) {
+    const group = event.target.closest('[data-term-fields]');
+
+    if (group) syncTermFields(group);
+
+    return;
+  }
+
   if (
     !busy &&
     event.target.name === 'roster_class'
@@ -2544,6 +3124,14 @@ document.addEventListener('change', event => {
 });
 
 document.addEventListener('input', event => {
+  if (!busy && event.target.name === 'term_year') {
+    const group = event.target.closest('[data-term-fields]');
+
+    if (group) syncTermFields(group);
+
+    return;
+  }
+
   if (event.target.id !== 'student-search') return;
 
   const query = event.target.value.toLowerCase();
@@ -2574,6 +3162,8 @@ document.addEventListener('input', event => {
       `)
       .join('');
 });
+
+/* Navigation, refresh and logout */
 
 window.addEventListener('hashchange', () => {
   if (!busy) {
@@ -2635,10 +3225,13 @@ $('retry').addEventListener('click', () => {
   location.reload();
 });
 
+/* Authentication */
+
 onAuthStateChanged(auth, async user => {
   const current = ++version;
 
   ready = false;
+
   $('workspace').hidden = true;
   $('loading').hidden = false;
 
@@ -2653,8 +3246,20 @@ onAuthStateChanged(auth, async user => {
     };
 
     report = null;
+    formFeedback.clear();
+
     work = null;
     selectedClass = '';
+
+    directoryFilter = {
+      year: '',
+      season: ''
+    };
+
+    classFilter = {
+      year: '',
+      season: ''
+    };
   }
 
   if (!user) {
@@ -2668,6 +3273,7 @@ onAuthStateChanged(auth, async user => {
     if (current !== version) return;
 
     ready = true;
+
     $('loading').hidden = true;
     $('workspace').hidden = false;
 

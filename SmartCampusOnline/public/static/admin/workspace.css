@@ -1,4 +1,4 @@
-@import url('../teacher/portal.css?v=6');
+@import url('../teacher/portal.css?v=8');
 
 :root {
   --ink: #24364c;
@@ -66,14 +66,21 @@
   text-align: center;
 }
 
-.tsb-nav a:hover,
 .logout-button:hover {
   background: #203c5b;
+}
+
+.tsb-nav a:not(.active):hover {
+  background: transparent;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .tsb-nav a.active {
   background: #dce9fc;
   color: #1e4b88;
+  box-shadow: inset 3px 0 0 #285fb9;
 }
 
 .sidebar-account {
@@ -136,6 +143,25 @@ h2 {
   background: #fceced;
   color: #a03c46;
   border-color: #efd6d9;
+}
+
+.badge.unmarked {
+  background: #edf0f4;
+  color: #5c6573;
+  border-color: #dce1e8;
+}
+
+.form-feedback {
+  flex: 0 0 100%;
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 12px 0 0;
+  scroll-margin: 100px;
+  overflow-wrap: anywhere;
+}
+
+.form-feedback[hidden] {
+  display: none;
 }
 
 .metrics {
@@ -421,5 +447,39 @@ dialog p {
 
   .form-grid .full {
     grid-column: auto;
+  }
+}
+
+/* Semester and year controls */
+
+.term-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  grid-column: 1 / -1;
+}
+
+.term-preview {
+  grid-column: 1 / -1;
+  margin: -5px 0 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.badge.late {
+  background: #fff3d9;
+  color: #85621b;
+  border-color: #eedeae;
+}
+
+.badge.excused {
+  background: #edf3ff;
+  color: #345f9e;
+  border-color: #d5e0f4;
+}
+
+@media (max-width: 500px) {
+  .term-fields {
+    grid-template-columns: 1fr;
   }
 }
